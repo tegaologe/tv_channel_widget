@@ -1,9 +1,13 @@
 /// List of all channels
 class TvChannel {
   final String channelName;
+  final String channelLogoBase64;
   final List<ShowItem> showItems;
 
-  TvChannel({required this.channelName, required this.showItems});
+  TvChannel(
+      {required this.channelName,
+      required this.showItems,
+      required this.channelLogoBase64});
 }
 
 /// List of show for a channel

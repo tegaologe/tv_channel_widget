@@ -194,28 +194,38 @@ class _ChannelWidgetState extends State<ChannelWidget> {
           SizedBox(
             width: widget.channelWidth,
             child: ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: widget.showTime
-                    ? (widget.channelShows.length + 1)
-                    : widget.channelShows.length,
-                itemBuilder: (context, index) {
-                  if (index == 0 && widget.showTime) {
-                    return SizedBox(
-                      height: widget.timerRowHeight,
-                      width: widget.channelWidth,
-                    );
-                  }
-                  return Padding(
-                    padding:
-                        EdgeInsets.symmetric(vertical: widget.verticalPadding),
-                    child: SizedBox(
-                      height: widget.itemHeight,
-                      child: widget.channelBuilder(
-                          context, widget.showTime ? (index - 1) : index),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: widget.showTime
+                  ? (widget.channelShows.length + 1)
+                  : widget.channelShows.length,
+              itemBuilder: (context, index) {
+                if (index == 0 && widget.showTime) {
+                  // Row that aligns with the timer row on the right
+                  return SizedBox(
+                    height: widget.timerRowHeight,
+                    width: widget.channelWidth,
+                    child: const Text(
+                      'Channels',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
                     ),
                   );
-                }),
+                }
+
+                return Padding(
+                  padding:
+                      EdgeInsets.symmetric(vertical: widget.verticalPadding),
+                  child: SizedBox(
+                    height: widget.itemHeight,
+                    child: widget.channelBuilder(
+                        context, widget.showTime ? (index - 1) : index),
+                  ),
+                );
+              },
+            ),
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -264,7 +274,10 @@ class _ChannelWidgetState extends State<ChannelWidget> {
         children: _getTimeSlots()
             .map((e) => SizedBox(
                   width: getCalculatedWidth(30),
-                  child: Text(e),
+                  child: Text(e,
+                      style: const TextStyle(
+                        color: Colors.white,
+                      )),
                 ))
             .toList(),
       ),
