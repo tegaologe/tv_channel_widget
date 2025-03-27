@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:tv_channel_widget/src/model/tv_channle.dart';
 import 'package:tv_channel_widget/src/utils/utils.dart';
+import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 
 /// A callback function that takes in a `BuildContext` and an `int` index and returns a `Widget`.
 typedef ItemBuilder = Widget Function(BuildContext context, int index);
@@ -170,79 +171,111 @@ class ChannelWidget extends StatefulWidget {
 }
 
 class _ChannelWidgetState extends State<ChannelWidget> {
-  final _scrollController = ScrollController();
+  late final LinkedScrollControllerGroup _horizontalScrollGroup;
+  late final ScrollController _timelineController;
+  late final ScrollController _showsController;
+
+  final _verticalScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (timeStamp) {
-        if (widget.moveToCurrentTime) {
-          moveToCurrentPosition();
-        }
-      },
-    );
+    _horizontalScrollGroup = LinkedScrollControllerGroup();
+    _timelineController = _horizontalScrollGroup.addAndGet();
+    _showsController = _horizontalScrollGroup.addAndGet();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.moveToCurrentTime) {
+        _scrollToCurrentTime();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timelineController.dispose();
+    _showsController.dispose();
+    _verticalScrollController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: widget.channelWidth,
-            child: ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: widget.showTime
-                  ? (widget.channelShows.length + 1)
-                  : widget.channelShows.length,
-              itemBuilder: (context, index) {
-                if (index == 0 && widget.showTime) {
-                  // Row that aligns with the timer row on the right
-                  return SizedBox(
-                    height: widget.timerRowHeight,
-                    width: widget.channelWidth,
-                    child: const Text(
-                      'Channels',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                    ),
-                  );
-                }
-
-                return Padding(
-                  padding:
-                      EdgeInsets.symmetric(vertical: widget.verticalPadding),
-                  child: SizedBox(
-                    height: widget.itemHeight,
-                    child: widget.channelBuilder(
-                        context, widget.showTime ? (index - 1) : index),
-                  ),
-                );
-              },
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              scrollDirection: Axis.horizontal,
-              child: Column(
-                children: [
-                  if (widget.showTime) buildTimerRow(),
-                  ...widget.channelShows
-                      .map((channel) => buildChannelRows(channel))
-                      .toList(growable: false),
-                ],
+    return Column(
+      children: [
+        // Fixed Header Row (Channels + Timeline)
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Channels Title
+            SizedBox(
+              width: widget.channelWidth,
+              child: const Text(
+                'Channels',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
               ),
             ),
+            // Timeline with synchronized horizontal scroll
+            Expanded(
+              child: SizedBox(
+                height: widget.timerRowHeight,
+                child: SingleChildScrollView(
+                  controller: _timelineController,
+                  scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
+                  child: buildTimerRow(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        // Content Area (Channels + Shows)
+        Expanded(
+          child: SingleChildScrollView(
+            controller: _verticalScrollController,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Channel List
+                SizedBox(
+                  width: widget.channelWidth,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: widget.channelShows.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: EdgeInsets.symmetric(
+                            vertical: widget.verticalPadding),
+                        child: SizedBox(
+                          height: widget.itemHeight,
+                          child: widget.channelBuilder(context, index),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                // Shows Content with synchronized horizontal scroll
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _showsController,
+                    scrollDirection: Axis.horizontal,
+                    physics: const ClampingScrollPhysics(),
+                    child: Column(
+                      children: widget.channelShows
+                          .map((channel) => buildChannelRows(channel))
+                          .toList(growable: false),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -268,24 +301,23 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   }
 
   Widget buildTimerRow() {
+    final totalWidth = _calculateTotalTimelineWidth();
     return SizedBox(
-      height: widget.timerRowHeight,
+      width: totalWidth,
       child: Row(
-        children: _getTimeSlots()
-            .map((e) => SizedBox(
-                  width: getCalculatedWidth(30),
-                  child: Text(e,
-                      style: const TextStyle(
-                        color: Colors.white,
-                      )),
-                ))
-            .toList(),
+        children: _getTimeSlots().map((time) {
+          return SizedBox(
+            width: getCalculatedWidth(30),
+            child: Text(
+              time,
+              style: const TextStyle(color: Colors.white),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
 
-  /// This function determines the width of show
-  /// Calculated the width per Minute
   double getCalculatedWidth(int showMins) {
     final screenWidget = MediaQuery.of(context).size;
     final restWidth = screenWidget.width * 0.8;
@@ -293,15 +325,15 @@ class _ChannelWidgetState extends State<ChannelWidget> {
     return (perMinWidth * showMins);
   }
 
-  /// This function finds the show length in minutes
+  double _calculateTotalTimelineWidth() {
+    final timeSlots = _getTimeSlots();
+    return timeSlots.length * getCalculatedWidth(30);
+  }
+
   int _getShowsLengthInMin(ShowItem showItem) {
     return Utils.getDateDiffInMin(showItem.showStartTime, showItem.showEndTime);
   }
 
-  /// Returns a list of time slots in 30-minute increments starting from midnight of the current day.
-  ///
-  /// The time slots are formatted as strings in the "HH:mm" format. The returned list contains 48 time slots,
-  /// representing 2 full days worth of 30-minute intervals.
   List<String> _getTimeSlots() {
     final timeFormat = DateFormat('HH:mm');
     final timeSlots = <String>[];
@@ -310,7 +342,6 @@ class _ChannelWidgetState extends State<ChannelWidget> {
         minutes: DateTime.now().minute,
         seconds: DateTime.now().second));
 
-    // Add 48 time slots to the list (2 full days worth of 30-minute slots)
     for (var i = 1; i < 48; i++) {
       timeSlots.add(timeFormat.format(time));
       time = time.add(const Duration(minutes: 30));
@@ -318,11 +349,14 @@ class _ChannelWidgetState extends State<ChannelWidget> {
     return timeSlots;
   }
 
-  /// This function determines the current position of widget
-  /// Calculated the width and move to current position
-  void moveToCurrentPosition() {
-    final leftMin = Utils.getMidNightToNowDiffInMin();
-    final scrollPosition = getCalculatedWidth(leftMin);
-    _scrollController.jumpTo(scrollPosition);
+  void _scrollToCurrentTime() {
+    final now = DateTime.now();
+    final midnight = DateTime(now.year, now.month, now.day);
+    final minutesSinceMidnight = now.difference(midnight).inMinutes;
+
+    final scrollPosition = getCalculatedWidth(minutesSinceMidnight);
+
+    _timelineController.jumpTo(scrollPosition);
+    _showsController.jumpTo(scrollPosition);
   }
 }
