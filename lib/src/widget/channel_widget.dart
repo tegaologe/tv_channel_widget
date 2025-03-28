@@ -149,6 +149,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                 child: ListView.builder(
                   controller: _timelineController,
                   scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
                   itemCount: _visibleSlotCount,
                   itemBuilder: (context, index) {
                     final time = _baseTime.add(Duration(minutes: index * 30));
@@ -176,6 +177,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                 child: ListView.builder(
                   controller: _channelListController,
                   itemCount: widget.itemCount,
+                  physics: const ClampingScrollPhysics(),
                   itemBuilder: (context, index) {
                     return FutureBuilder<TvChannel>(
                       future: _loadChannel(index),
@@ -203,12 +205,14 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                 child: SingleChildScrollView(
                   controller: _showsScrollController,
                   scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
                   child: Stack(
                     children: [
                       SizedBox(
                         width: getCalculatedWidth(_visibleSlotCount * 30),
                         child: ListView.builder(
                           controller: _showListController,
+                          physics: const ClampingScrollPhysics(),
                           itemCount: widget.itemCount,
                           itemBuilder: (context, index) {
                             return FutureBuilder<TvChannel>(
