@@ -1,17 +1,21 @@
 /// List of all channels
 class TvChannel {
+  final String channelID;
   final String channelName;
   final String channelLogoBase64;
   final List<ShowItem> showItems;
 
   TvChannel(
-      {required this.channelName,
+      {required this.channelID,
+      required this.channelName,
       required this.showItems,
       required this.channelLogoBase64});
 }
 
 /// List of show for a channel
 class ShowItem {
+  final String showID;
+
   /// String that shows Show Name
   final String showName;
 
@@ -22,6 +26,7 @@ class ShowItem {
   final DateTime showEndTime;
 
   ShowItem({
+    required this.showID,
     required this.showName,
     required this.showStartTime,
     required this.showEndTime,

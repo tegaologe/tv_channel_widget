@@ -3,8 +3,10 @@ import 'dart:core';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:tv_channel_widget/src/model/tv_channle.dart';
-import 'package:tv_channel_widget/src/utils/utils.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
+
+typedef PlaceholderBuilder = Widget Function(
+    BuildContext context, DateTime slotStart);
 
 /// A callback function that takes in a `BuildContext` and an `int` index and returns a `Widget`.
 typedef ItemBuilder = Widget Function(BuildContext context, int index);
@@ -27,6 +29,7 @@ class ChannelWidget extends StatefulWidget {
   /// The [verticalPadding] parameter specifies the vertical padding. Defaults to `10`.
   /// The [timerRowHeight] parameter specifies the height of the timer row. Defaults to `20`.
   /// The [disableHorizontalScroll] parameter determines the scroll behavior for horizontal scrolling. Defaults to `false`.
+  /// The [offsetFromNow] parameter specifies the offset from the current time. Defaults to `0`.
   ChannelWidget({
     Key? key,
     required this.channelShows,
@@ -39,6 +42,9 @@ class ChannelWidget extends StatefulWidget {
     this.verticalPadding = 10,
     this.timerRowHeight = 20,
     this.disableHorizontalScroll = false,
+    required this.offsetFromNow,
+    required this.durationPerScrollExtension,
+    required this.placeholderBuilder,
   }) : super(key: key) {
     // Assert that there are no conflicting show times in the channelShows list
     final conflictingShows = _getConflictingShows(channelShows);
@@ -84,6 +90,14 @@ class ChannelWidget extends StatefulWidget {
   /// Determines scroll behavior for horizontal scroll
   /// Defaults to false
   final bool disableHorizontalScroll;
+
+  final Duration offsetFromNow;
+
+  final Duration durationPerScrollExtension;
+
+  /// Builder for placeholder widgets in empty time slots
+  final Widget Function(BuildContext context, DateTime slotStart)
+      placeholderBuilder;
 
   @override
   State<ChannelWidget> createState() => _ChannelWidgetState();
@@ -151,13 +165,9 @@ class ChannelWidget extends StatefulWidget {
 
         // If the start time of the current show is after the end time of the previous show,
         // add the duration between the two times to the missing time list
-        if (showStartTime.isAfter(endTime)) {
-          return '''Missing time found in ${channel.channelName} Channel for ${showStartTime.difference(endTime).inMinutes.abs()} Min
-            Please check your list and verify start and end time of ShowItem.
-            Ex
-            Show one Start time is 8 PM and end time is 9 PM'
-            Show two start time Should start with 9 PM';
-          ''';
+        if (showStartTime.difference(endTime).inMinutes > 0) {
+          return '''Missing time found in ${channel.channelName} Channel for ${showStartTime.difference(endTime).inMinutes} Min
+  Please check your list and verify start and end time of ShowItem.''';
         }
 
         // Update the start and end times for the next iteration
@@ -174,8 +184,11 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   late final LinkedScrollControllerGroup _horizontalScrollGroup;
   late final ScrollController _timelineController;
   late final ScrollController _showsController;
-
   final _verticalScrollController = ScrollController();
+
+  late final DateTime _baseTime;
+  int _visibleSlotCount = 48; // Initial: 24h x 30min
+  late final int _slotsPerScrollExtension;
 
   @override
   void initState() {
@@ -183,6 +196,11 @@ class _ChannelWidgetState extends State<ChannelWidget> {
     _horizontalScrollGroup = LinkedScrollControllerGroup();
     _timelineController = _horizontalScrollGroup.addAndGet();
     _showsController = _horizontalScrollGroup.addAndGet();
+    _baseTime = DateTime.now().subtract(widget.offsetFromNow);
+    _slotsPerScrollExtension =
+        widget.durationPerScrollExtension.inMinutes ~/ 30;
+
+    _timelineController.addListener(_onTimelineScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.moveToCurrentTime) {
@@ -193,53 +211,77 @@ class _ChannelWidgetState extends State<ChannelWidget> {
 
   @override
   void dispose() {
+    _timelineController.removeListener(_onTimelineScroll);
     _timelineController.dispose();
     _showsController.dispose();
     _verticalScrollController.dispose();
     super.dispose();
   }
 
+  void _onTimelineScroll() {
+    final maxScroll = _timelineController.position.maxScrollExtent;
+    final currentScroll = _timelineController.offset;
+
+    if (currentScroll > maxScroll - 300) {
+      setState(() {
+        _visibleSlotCount += _slotsPerScrollExtension;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Fixed Header Row (Channels + Timeline)
+        // Header Row: Date + Channels + Timeline
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Channels Title
+            // Left side label (Date + Channels)
             SizedBox(
               width: widget.channelWidth,
-              child: const Text(
-                'Channels',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    DateFormat('MMMM d').format(_baseTime),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ],
               ),
             ),
-            // Timeline with synchronized horizontal scroll
+            // Timeline Row
             Expanded(
               child: SizedBox(
                 height: widget.timerRowHeight,
-                child: SingleChildScrollView(
+                child: ListView.builder(
                   controller: _timelineController,
                   scrollDirection: Axis.horizontal,
-                  physics: const ClampingScrollPhysics(),
-                  child: buildTimerRow(),
+                  itemCount: _visibleSlotCount,
+                  itemBuilder: (context, index) {
+                    final time = _baseTime.add(Duration(minutes: index * 30));
+                    final label = DateFormat('HH:mm').format(time);
+                    return SizedBox(
+                      width: getCalculatedWidth(30),
+                      child: Text(
+                        label,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
           ],
         ),
-        // Content Area (Channels + Shows)
+        // Main Content (Channel labels + show grid)
         Expanded(
           child: SingleChildScrollView(
             controller: _verticalScrollController,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Channel List
+                // Channel Names
                 SizedBox(
                   width: widget.channelWidth,
                   child: ListView.builder(
@@ -258,7 +300,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                     },
                   ),
                 ),
-                // Shows Content with synchronized horizontal scroll
+                // Shows Grid (horizontal scroll)
                 Expanded(
                   child: SingleChildScrollView(
                     controller: _showsController,
@@ -266,8 +308,8 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                     physics: const ClampingScrollPhysics(),
                     child: Column(
                       children: widget.channelShows
-                          .map((channel) => buildChannelRows(channel))
-                          .toList(growable: false),
+                          .map((channel) => buildChannelRow(channel))
+                          .toList(),
                     ),
                   ),
                 ),
@@ -279,84 +321,97 @@ class _ChannelWidgetState extends State<ChannelWidget> {
     );
   }
 
-  Row buildChannelRows(TvChannel channels) {
+  Widget buildChannelRow(TvChannel channel) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: buildShows(channels.showItems),
+      children: buildShows(channel.showItems),
     );
   }
 
   List<Widget> buildShows(List<ShowItem> shows) {
-    return List.generate(shows.length, (index) {
-      final showLengthInMin = _getShowsLengthInMin(shows[index]);
-      return Padding(
-        padding: EdgeInsets.symmetric(vertical: widget.verticalPadding),
-        child: SizedBox(
-          height: widget.itemHeight,
-          width: getCalculatedWidth(showLengthInMin),
-          child: widget.showsBuilder(context, shows[index]),
-        ),
-      );
-    });
-  }
+    final List<Widget> showWidgets = [];
+    final sortedShows = [...shows]
+      ..sort((a, b) => a.showStartTime.compareTo(b.showStartTime));
 
-  Widget buildTimerRow() {
-    final totalWidth = _calculateTotalTimelineWidth();
-    return SizedBox(
-      width: totalWidth,
-      child: Row(
-        children: _getTimeSlots().map((time) {
-          return SizedBox(
-            width: getCalculatedWidth(30),
-            child: Text(
-              time,
-              style: const TextStyle(color: Colors.white),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
+    final DateTime timelineStart = _baseTime;
+    final DateTime timelineEnd =
+        timelineStart.add(Duration(minutes: _visibleSlotCount * 30));
 
-  double getCalculatedWidth(int showMins) {
-    final screenWidget = MediaQuery.of(context).size;
-    final restWidth = screenWidget.width * 0.8;
-    final perMinWidth = restWidth / 60;
-    return (perMinWidth * showMins);
-  }
+    DateTime current = timelineStart;
+    int index = 0;
 
-  double _calculateTotalTimelineWidth() {
-    final timeSlots = _getTimeSlots();
-    return timeSlots.length * getCalculatedWidth(30);
-  }
+    while (current.isBefore(timelineEnd)) {
+      if (index < sortedShows.length) {
+        final show = sortedShows[index];
 
-  int _getShowsLengthInMin(ShowItem showItem) {
-    return Utils.getDateDiffInMin(showItem.showStartTime, showItem.showEndTime);
-  }
+        // If the show ends before current slot, skip it
+        if (show.showEndTime.isBefore(current)) {
+          index++;
+          continue;
+        }
 
-  List<String> _getTimeSlots() {
-    final timeFormat = DateFormat('HH:mm');
-    final timeSlots = <String>[];
-    var time = DateTime.now().subtract(Duration(
-        hours: DateTime.now().hour,
-        minutes: DateTime.now().minute,
-        seconds: DateTime.now().second));
+        // If the show starts after the current slot, fill placeholder
+        if (show.showStartTime.isAfter(current)) {
+          final gapDuration = show.showStartTime.difference(current).inMinutes;
+          final placeholderCount = (gapDuration / 30).ceil();
 
-    for (var i = 1; i < 48; i++) {
-      timeSlots.add(timeFormat.format(time));
-      time = time.add(const Duration(minutes: 30));
+          for (int i = 0; i < placeholderCount; i++) {
+            showWidgets.add(buildPlaceholderSlot(current));
+          }
+
+          current = current.add(Duration(minutes: placeholderCount * 30));
+          continue;
+        }
+
+        // If the show starts before or at the current time
+        if (show.showStartTime.isBefore(timelineEnd)) {
+          final visibleStart = show.showStartTime.isAfter(current)
+              ? show.showStartTime
+              : current;
+          final duration = show.showEndTime.difference(visibleStart).inMinutes;
+
+          showWidgets.add(SizedBox(
+            height: widget.itemHeight,
+            width: getCalculatedWidth(duration),
+            child: widget.showsBuilder(context, show),
+          ));
+
+          current = show.showEndTime;
+          index++;
+        } else {
+          break;
+        }
+      } else {
+        // Fill the rest with placeholders
+        showWidgets.add(buildPlaceholderSlot(current));
+        current = current.add(const Duration(minutes: 30));
+      }
     }
-    return timeSlots;
+
+    return showWidgets;
+  }
+
+  Widget buildPlaceholderSlot(DateTime slotStart) {
+    return SizedBox(
+      height: widget.itemHeight,
+      width: getCalculatedWidth(30),
+      child: widget.placeholderBuilder(context, slotStart),
+    );
   }
 
   void _scrollToCurrentTime() {
     final now = DateTime.now();
-    final midnight = DateTime(now.year, now.month, now.day);
-    final minutesSinceMidnight = now.difference(midnight).inMinutes;
-
-    final scrollPosition = getCalculatedWidth(minutesSinceMidnight);
+    final diffMin = now.difference(_baseTime).inMinutes;
+    final scrollPosition = getCalculatedWidth(diffMin);
 
     _timelineController.jumpTo(scrollPosition);
     _showsController.jumpTo(scrollPosition);
+  }
+
+  double getCalculatedWidth(int showMins) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final usableWidth = screenWidth * 0.8;
+    final perMinWidth = usableWidth / 60;
+    return perMinWidth * showMins;
   }
 }
