@@ -29,7 +29,6 @@ class ChannelWidget extends StatefulWidget {
   /// The [verticalPadding] parameter specifies the vertical padding. Defaults to `10`.
   /// The [timerRowHeight] parameter specifies the height of the timer row. Defaults to `20`.
   /// The [disableHorizontalScroll] parameter determines the scroll behavior for horizontal scrolling. Defaults to `false`.
-  /// The [offsetFromNow] parameter specifies the offset from the current time. Defaults to `0`.
   ChannelWidget({
     Key? key,
     required this.channelShows,
@@ -42,7 +41,6 @@ class ChannelWidget extends StatefulWidget {
     this.verticalPadding = 10,
     this.timerRowHeight = 20,
     this.disableHorizontalScroll = false,
-    required this.offsetFromNow,
     required this.durationPerScrollExtension,
     required this.placeholderBuilder,
   }) : super(key: key) {
@@ -90,8 +88,6 @@ class ChannelWidget extends StatefulWidget {
   /// Determines scroll behavior for horizontal scroll
   /// Defaults to false
   final bool disableHorizontalScroll;
-
-  final Duration offsetFromNow;
 
   final Duration durationPerScrollExtension;
 
@@ -189,14 +185,20 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   late final DateTime _baseTime;
   int _visibleSlotCount = 48; // Initial: 24h x 30min
   late final int _slotsPerScrollExtension;
-
+  final now = DateTime.now();
   @override
   void initState() {
     super.initState();
     _horizontalScrollGroup = LinkedScrollControllerGroup();
     _timelineController = _horizontalScrollGroup.addAndGet();
     _showsController = _horizontalScrollGroup.addAndGet();
-    _baseTime = DateTime.now().subtract(widget.offsetFromNow);
+    _baseTime = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+      now.minute >= 30 ? 30 : 0,
+    );
     _slotsPerScrollExtension =
         widget.durationPerScrollExtension.inMinutes ~/ 30;
 
@@ -322,73 +324,89 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   }
 
   Widget buildChannelRow(TvChannel channel) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: buildShows(channel.showItems),
+    return SizedBox(
+      height: widget.itemHeight,
+      width: getCalculatedWidth(_visibleSlotCount * 30),
+      child: Stack(
+        children: channel.showItems.map((show) {
+          final showStartOffset =
+              show.showStartTime.difference(_baseTime).inMinutes;
+          final showDuration =
+              show.showEndTime.difference(show.showStartTime).inMinutes;
+
+          return Positioned(
+            left: getCalculatedWidth(showStartOffset),
+            width: getCalculatedWidth(showDuration),
+            height: widget.itemHeight,
+            child: widget.showsBuilder(context, show),
+          );
+        }).toList(),
+      ),
     );
   }
 
   List<Widget> buildShows(List<ShowItem> shows) {
-    final List<Widget> showWidgets = [];
+    final List<Widget> rowWidgets = [];
     final sortedShows = [...shows]
       ..sort((a, b) => a.showStartTime.compareTo(b.showStartTime));
 
     final DateTime timelineStart = _baseTime;
     final DateTime timelineEnd =
         timelineStart.add(Duration(minutes: _visibleSlotCount * 30));
+    DateTime slotStart = timelineStart;
 
-    DateTime current = timelineStart;
-    int index = 0;
+    ShowItem? currentShow;
+    int showIndex = 0;
 
-    while (current.isBefore(timelineEnd)) {
-      if (index < sortedShows.length) {
-        final show = sortedShows[index];
+    while (slotStart.isBefore(timelineEnd)) {
+      final slotEnd = slotStart.add(const Duration(minutes: 30));
+      bool filled = false;
 
-        // If the show ends before current slot, skip it
-        if (show.showEndTime.isBefore(current)) {
-          index++;
+      // Find overlapping show for this slot
+      for (int i = showIndex; i < sortedShows.length; i++) {
+        final show = sortedShows[i];
+
+        if (show.showEndTime.isBefore(slotStart)) {
+          showIndex = i + 1; // move ahead
           continue;
         }
 
-        // If the show starts after the current slot, fill placeholder
-        if (show.showStartTime.isAfter(current)) {
-          final gapDuration = show.showStartTime.difference(current).inMinutes;
-          final placeholderCount = (gapDuration / 30).ceil();
+        if (overlaps(slotStart, slotEnd, show)) {
+          final partStart = show.showStartTime.isBefore(slotStart)
+              ? slotStart
+              : show.showStartTime;
+          final partEnd =
+              show.showEndTime.isAfter(slotEnd) ? slotEnd : show.showEndTime;
+          final duration = partEnd.difference(partStart).inMinutes;
 
-          for (int i = 0; i < placeholderCount; i++) {
-            showWidgets.add(buildPlaceholderSlot(current));
-          }
-
-          current = current.add(Duration(minutes: placeholderCount * 30));
-          continue;
-        }
-
-        // If the show starts before or at the current time
-        if (show.showStartTime.isBefore(timelineEnd)) {
-          final visibleStart = show.showStartTime.isAfter(current)
-              ? show.showStartTime
-              : current;
-          final duration = show.showEndTime.difference(visibleStart).inMinutes;
-
-          showWidgets.add(SizedBox(
+          rowWidgets.add(SizedBox(
             height: widget.itemHeight,
             width: getCalculatedWidth(duration),
             child: widget.showsBuilder(context, show),
           ));
 
-          current = show.showEndTime;
-          index++;
-        } else {
+          filled = true;
           break;
         }
-      } else {
-        // Fill the rest with placeholders
-        showWidgets.add(buildPlaceholderSlot(current));
-        current = current.add(const Duration(minutes: 30));
       }
+
+      if (!filled) {
+        rowWidgets.add(SizedBox(
+          height: widget.itemHeight,
+          width: getCalculatedWidth(30),
+          child: widget.placeholderBuilder(context, slotStart),
+        ));
+      }
+
+      slotStart = slotEnd;
     }
 
-    return showWidgets;
+    return rowWidgets;
+  }
+
+  bool overlaps(DateTime slotStart, DateTime slotEnd, ShowItem show) {
+    return show.showStartTime.isBefore(slotEnd) &&
+        show.showEndTime.isAfter(slotStart);
   }
 
   Widget buildPlaceholderSlot(DateTime slotStart) {
@@ -408,10 +426,10 @@ class _ChannelWidgetState extends State<ChannelWidget> {
     _showsController.jumpTo(scrollPosition);
   }
 
-  double getCalculatedWidth(int showMins) {
+  double getCalculatedWidth(int minutes) {
     final screenWidth = MediaQuery.of(context).size.width;
     final usableWidth = screenWidth * 0.8;
     final perMinWidth = usableWidth / 60;
-    return perMinWidth * showMins;
+    return perMinWidth * minutes;
   }
 }
