@@ -48,9 +48,11 @@ class ChannelWidget extends StatefulWidget {
     final conflictingShows = _getConflictingShows(channelShows);
     assert(conflictingShows.isEmpty,
         'Conflicting show times found: $conflictingShows');
+    /*
     final missingTimesShows = _findMissingTime(channelShows);
     assert(missingTimesShows == null,
         'Missing show times found:  $missingTimesShows');
+    */
   }
 
   /// Determines how the [ChannelWidget] should look.
@@ -259,6 +261,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                 child: ListView.builder(
                   controller: _timelineController,
                   scrollDirection: Axis.horizontal,
+                  physics: const ClampingScrollPhysics(),
                   itemCount: _visibleSlotCount,
                   itemBuilder: (context, index) {
                     final time = _baseTime.add(Duration(minutes: index * 30));
@@ -324,24 +327,69 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   }
 
   Widget buildChannelRow(TvChannel channel) {
+    final List<Widget> children = [];
+    final sortedShows = [...channel.showItems]
+      ..sort((a, b) => a.showStartTime.compareTo(b.showStartTime));
+
+    final DateTime timelineStart = _baseTime;
+    final DateTime timelineEnd =
+        timelineStart.add(Duration(minutes: _visibleSlotCount * 30));
+
+    DateTime current = timelineStart;
+
+    if (sortedShows.isEmpty) {
+      _addPlaceholdersInChunks(
+        children: children,
+        from: current,
+        to: timelineEnd,
+      );
+    } else {
+      for (final show in sortedShows) {
+        // 🔹 Fill leading gap
+        if (show.showStartTime.isAfter(current)) {
+          _addPlaceholdersInChunks(
+            children: children,
+            from: current,
+            to: show.showStartTime,
+          );
+        }
+
+        // 🔹 Add the show
+        final effectiveStart = show.showStartTime.isBefore(timelineStart)
+            ? timelineStart
+            : show.showStartTime;
+
+        final showOffset = effectiveStart.difference(timelineStart).inMinutes;
+        final effectiveEnd = show.showEndTime.isAfter(timelineEnd)
+            ? timelineEnd
+            : show.showEndTime;
+
+        final showDuration = effectiveEnd.difference(effectiveStart).inMinutes;
+
+        children.add(Positioned(
+          left: getCalculatedWidth(showOffset),
+          width: getCalculatedWidth(showDuration),
+          height: widget.itemHeight,
+          child: widget.showsBuilder(context, show),
+        ));
+
+        current = show.showEndTime;
+      }
+
+      // 🔹 Trailing placeholder (after last show)
+      if (current.isBefore(timelineEnd)) {
+        _addPlaceholdersInChunks(
+          children: children,
+          from: current,
+          to: timelineEnd,
+        );
+      }
+    }
+
     return SizedBox(
       height: widget.itemHeight,
       width: getCalculatedWidth(_visibleSlotCount * 30),
-      child: Stack(
-        children: channel.showItems.map((show) {
-          final showStartOffset =
-              show.showStartTime.difference(_baseTime).inMinutes;
-          final showDuration =
-              show.showEndTime.difference(show.showStartTime).inMinutes;
-
-          return Positioned(
-            left: getCalculatedWidth(showStartOffset),
-            width: getCalculatedWidth(showDuration),
-            height: widget.itemHeight,
-            child: widget.showsBuilder(context, show),
-          );
-        }).toList(),
-      ),
+      child: Stack(children: children),
     );
   }
 
@@ -431,5 +479,29 @@ class _ChannelWidgetState extends State<ChannelWidget> {
     final usableWidth = screenWidth * 0.8;
     final perMinWidth = usableWidth / 60;
     return perMinWidth * minutes;
+  }
+
+  void _addPlaceholdersInChunks({
+    required List<Widget> children,
+    required DateTime from,
+    required DateTime to,
+  }) {
+    final totalMinutes = to.difference(from).inMinutes;
+    DateTime current = from;
+
+    while (current.isBefore(to)) {
+      final nextChunkEnd = current.add(const Duration(minutes: 30));
+      final chunkEnd = nextChunkEnd.isBefore(to) ? nextChunkEnd : to;
+      final chunkDuration = chunkEnd.difference(current).inMinutes;
+
+      children.add(Positioned(
+        left: getCalculatedWidth(current.difference(_baseTime).inMinutes),
+        width: getCalculatedWidth(chunkDuration),
+        height: widget.itemHeight,
+        child: widget.placeholderBuilder(context, current),
+      ));
+
+      current = chunkEnd;
+    }
   }
 }
