@@ -183,6 +183,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   late final ScrollController _timelineController;
   late final ScrollController _showsController;
   final _verticalScrollController = ScrollController();
+  late DateTime _currentVisibleDate;
 
   late final DateTime _baseTime;
   int _visibleSlotCount = 48; // Initial: 24h x 30min
@@ -191,9 +192,11 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now(); // 👈 move here!
     _horizontalScrollGroup = LinkedScrollControllerGroup();
     _timelineController = _horizontalScrollGroup.addAndGet();
     _showsController = _horizontalScrollGroup.addAndGet();
+
     _baseTime = DateTime(
       now.year,
       now.month,
@@ -201,6 +204,9 @@ class _ChannelWidgetState extends State<ChannelWidget> {
       now.hour,
       now.minute >= 30 ? 30 : 0,
     );
+
+    _currentVisibleDate = _baseTime; // if using scroll-updated date
+
     _slotsPerScrollExtension =
         widget.durationPerScrollExtension.inMinutes ~/ 30;
 
@@ -231,6 +237,18 @@ class _ChannelWidgetState extends State<ChannelWidget> {
         _visibleSlotCount += _slotsPerScrollExtension;
       });
     }
+
+    // 👇 Compute visible time at left edge
+    final minutesOffset = currentScroll / getCalculatedWidth(1);
+    final scrolledTime =
+        _baseTime.add(Duration(minutes: minutesOffset.round()));
+
+    // 👇 Only update if changed (avoids redundant rebuilds)
+    if (!isSameDay(scrolledTime, _currentVisibleDate)) {
+      setState(() {
+        _currentVisibleDate = scrolledTime;
+      });
+    }
   }
 
   @override
@@ -247,9 +265,13 @@ class _ChannelWidgetState extends State<ChannelWidget> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    DateFormat('MMMM d').format(_baseTime),
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  Container(
+                    height: widget.timerRowHeight,
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Text(
+                      DateFormat('EEE, MMM, d').format(_currentVisibleDate),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                    ),
                   ),
                 ],
               ),
@@ -265,7 +287,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                   itemCount: _visibleSlotCount,
                   itemBuilder: (context, index) {
                     final time = _baseTime.add(Duration(minutes: index * 30));
-                    final label = DateFormat('HH:mm').format(time);
+                    final label = DateFormat('hh:mm a').format(time);
                     return SizedBox(
                       width: getCalculatedWidth(30),
                       child: Text(
@@ -504,4 +526,8 @@ class _ChannelWidgetState extends State<ChannelWidget> {
       current = chunkEnd;
     }
   }
+}
+
+bool isSameDay(DateTime a, DateTime b) {
+  return a.year == b.year && a.month == b.month && a.day == b.day;
 }
