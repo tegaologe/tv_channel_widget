@@ -274,7 +274,9 @@ class _ChannelWidgetState extends State<ChannelWidget> {
 
         for (final show in sortedShows) {
           if (show.showEndTime.isBefore(timelineStart) ||
-              show.showStartTime.isAfter(timelineEnd)) continue;
+              show.showStartTime.isAfter(timelineEnd)) {
+            continue;
+          }
 
           if (show.showStartTime.isAfter(current)) {
             _addPlaceholdersInChunks(
@@ -411,7 +413,9 @@ class _ChannelRowState extends State<ChannelRow>
 
         for (final show in sortedShows) {
           if (show.showEndTime.isBefore(timelineStart) ||
-              show.showStartTime.isAfter(timelineEnd)) continue;
+              show.showStartTime.isAfter(timelineEnd)) {
+            continue;
+          }
 
           if (show.showStartTime.isAfter(current)) {
             _addPlaceholders(children, current, show.showStartTime);
@@ -446,7 +450,7 @@ class _ChannelRowState extends State<ChannelRow>
   void _addPlaceholders(List<Widget> children, DateTime from, DateTime to) {
     DateTime current = from;
     while (current.isBefore(to)) {
-      final next = current.add(Duration(minutes: 30));
+      final next = current.add(const Duration(minutes: 30));
       final chunkEnd = next.isBefore(to) ? next : to;
       final chunkDuration = chunkEnd.difference(current).inMinutes;
 
