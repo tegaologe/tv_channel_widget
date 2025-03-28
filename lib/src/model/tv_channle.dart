@@ -5,13 +5,16 @@ class TvChannel {
   final String channelLogoBase64;
   final List<ShowItem> showItems;
   final dynamic imageStream;
+  final dynamic showItemsStream;
 
-  TvChannel(
-      {required this.channelID,
-      required this.channelName,
-      required this.showItems,
-      required this.channelLogoBase64,
-      this.imageStream});
+  TvChannel({
+    required this.channelID,
+    required this.channelName,
+    required this.showItems,
+    required this.channelLogoBase64,
+    this.imageStream,
+    this.showItemsStream,
+  });
 }
 
 /// List of show for a channel

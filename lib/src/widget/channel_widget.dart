@@ -223,7 +223,16 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                                 }
                                 return SizedBox(
                                   height: widget.itemHeight,
-                                  child: _buildChannelRow(snapshot.data!),
+                                  child: ChannelRow(
+                                    channel: snapshot.data!,
+                                    itemHeight: widget.itemHeight,
+                                    getCalculatedWidth: getCalculatedWidth,
+                                    showsBuilder: widget.showsBuilder,
+                                    placeholderBuilder:
+                                        widget.placeholderBuilder,
+                                    baseTime: _baseTime,
+                                    visibleSlotCount: _visibleSlotCount,
+                                  ),
                                 );
                               },
                             );
@@ -250,47 +259,53 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   }
 
   Widget _buildChannelRow(TvChannel channel) {
-    final List<Widget> children = [];
-    final sortedShows = [...channel.showItems]
-      ..sort((a, b) => a.showStartTime.compareTo(b.showStartTime));
-
     final timelineStart = _baseTime;
     final timelineEnd =
         timelineStart.add(Duration(minutes: _visibleSlotCount * 30));
-    DateTime current = timelineStart;
 
-    for (final show in sortedShows) {
-      if (show.showEndTime.isBefore(timelineStart) ||
-          show.showStartTime.isAfter(timelineEnd)) continue;
+    return StreamBuilder<List<dynamic>>(
+      stream: channel.showItemsStream,
+      builder: (context, snapshot) {
+        final sortedShows = [...(snapshot.data ?? channel.showItems)]
+          ..sort((a, b) => a.showStartTime.compareTo(b.showStartTime));
 
-      if (show.showStartTime.isAfter(current)) {
-        _addPlaceholdersInChunks(
-            children: children, from: current, to: show.showStartTime);
-        current = show.showStartTime;
-      }
+        List<Widget> children = [];
+        DateTime current = timelineStart;
 
-      final duration =
-          show.showEndTime.difference(show.showStartTime).inMinutes;
-      final key = show.showID;
+        for (final show in sortedShows) {
+          if (show.showEndTime.isBefore(timelineStart) ||
+              show.showStartTime.isAfter(timelineEnd)) continue;
 
-      _memoizedShowWidgets.putIfAbsent(
-          key, () => widget.showsBuilder(context, show));
+          if (show.showStartTime.isAfter(current)) {
+            _addPlaceholdersInChunks(
+                children: children, from: current, to: show.showStartTime);
+            current = show.showStartTime;
+          }
 
-      children.add(SizedBox(
-        width: getCalculatedWidth(duration),
-        height: widget.itemHeight,
-        child: _memoizedShowWidgets[key]!,
-      ));
+          final duration =
+              show.showEndTime.difference(show.showStartTime).inMinutes;
+          final key = show.showID;
 
-      current = show.showEndTime;
-    }
+          _memoizedShowWidgets.putIfAbsent(
+              key, () => widget.showsBuilder(context, show));
 
-    if (current.isBefore(timelineEnd)) {
-      _addPlaceholdersInChunks(
-          children: children, from: current, to: timelineEnd);
-    }
+          children.add(SizedBox(
+            width: getCalculatedWidth(duration),
+            height: widget.itemHeight,
+            child: _memoizedShowWidgets[key]!,
+          ));
 
-    return Row(children: children);
+          current = show.showEndTime;
+        }
+
+        if (current.isBefore(timelineEnd)) {
+          _addPlaceholdersInChunks(
+              children: children, from: current, to: timelineEnd);
+        }
+
+        return Row(children: children);
+      },
+    );
   }
 
   void _addPlaceholdersInChunks({
@@ -342,5 +357,106 @@ class _ChannelWidgetState extends State<ChannelWidget> {
 
   bool isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+}
+
+class ChannelRow extends StatefulWidget {
+  final TvChannel channel;
+  final double itemHeight;
+  final double Function(int minutes) getCalculatedWidth;
+  final ShowBuilder showsBuilder;
+  final PlaceholderBuilder placeholderBuilder;
+  final DateTime baseTime;
+  final int visibleSlotCount;
+
+  const ChannelRow({
+    super.key,
+    required this.channel,
+    required this.itemHeight,
+    required this.getCalculatedWidth,
+    required this.showsBuilder,
+    required this.placeholderBuilder,
+    required this.baseTime,
+    required this.visibleSlotCount,
+  });
+
+  @override
+  State<ChannelRow> createState() => _ChannelRowState();
+}
+
+class _ChannelRowState extends State<ChannelRow>
+    with AutomaticKeepAliveClientMixin {
+  final Map<String, Widget> _memoizedShowWidgets = {};
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    final timelineStart = widget.baseTime;
+    final timelineEnd = timelineStart.add(Duration(
+      minutes: widget.visibleSlotCount * 30,
+    ));
+
+    return StreamBuilder<List<ShowItem>>(
+      stream: widget.channel.showItemsStream,
+      builder: (context, snapshot) {
+        final sortedShows = [...(snapshot.data ?? widget.channel.showItems)]
+          ..sort((a, b) => a.showStartTime.compareTo(b.showStartTime));
+
+        List<Widget> children = [];
+        DateTime current = timelineStart;
+
+        for (final show in sortedShows) {
+          if (show.showEndTime.isBefore(timelineStart) ||
+              show.showStartTime.isAfter(timelineEnd)) continue;
+
+          if (show.showStartTime.isAfter(current)) {
+            _addPlaceholders(children, current, show.showStartTime);
+            current = show.showStartTime;
+          }
+
+          final duration =
+              show.showEndTime.difference(show.showStartTime).inMinutes;
+          final key = show.showID;
+
+          _memoizedShowWidgets.putIfAbsent(
+              key, () => widget.showsBuilder(context, show));
+
+          children.add(SizedBox(
+            width: widget.getCalculatedWidth(duration),
+            height: widget.itemHeight,
+            child: _memoizedShowWidgets[key]!,
+          ));
+
+          current = show.showEndTime;
+        }
+
+        if (current.isBefore(timelineEnd)) {
+          _addPlaceholders(children, current, timelineEnd);
+        }
+
+        return Row(children: children);
+      },
+    );
+  }
+
+  void _addPlaceholders(List<Widget> children, DateTime from, DateTime to) {
+    DateTime current = from;
+    while (current.isBefore(to)) {
+      final next = current.add(Duration(minutes: 30));
+      final chunkEnd = next.isBefore(to) ? next : to;
+      final chunkDuration = chunkEnd.difference(current).inMinutes;
+
+      children.add(SizedBox(
+        width: widget.getCalculatedWidth(chunkDuration),
+        height: widget.itemHeight,
+        child: widget.placeholderBuilder(context, current),
+      ));
+
+      current = chunkEnd;
+    }
   }
 }
