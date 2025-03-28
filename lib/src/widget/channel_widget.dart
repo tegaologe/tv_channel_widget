@@ -43,6 +43,7 @@ class ChannelWidget extends StatefulWidget {
     this.disableHorizontalScroll = false,
     required this.durationPerScrollExtension,
     required this.placeholderBuilder,
+    this.pixelsPerMinute = 2.0,
   }) : super(key: key) {
     // Assert that there are no conflicting show times in the channelShows list
     final conflictingShows = _getConflictingShows(channelShows);
@@ -92,6 +93,10 @@ class ChannelWidget extends StatefulWidget {
   final bool disableHorizontalScroll;
 
   final Duration durationPerScrollExtension;
+
+  /// Determines the number of pixels per minute
+  /// Defaults to 2.0
+  final double pixelsPerMinute;
 
   /// Builder for placeholder widgets in empty time slots
   final Widget Function(BuildContext context, DateTime slotStart)
@@ -305,6 +310,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
         Expanded(
           child: SingleChildScrollView(
             controller: _verticalScrollController,
+            physics: const ClampingScrollPhysics(),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -329,22 +335,65 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                 ),
                 // Shows Grid (horizontal scroll)
                 Expanded(
-                  child: SingleChildScrollView(
-                    controller: _showsController,
-                    scrollDirection: Axis.horizontal,
-                    physics: const ClampingScrollPhysics(),
-                    child: Column(
-                      children: widget.channelShows
-                          .map((channel) => buildChannelRow(channel))
-                          .toList(),
+                  child: SizedBox(
+                    height: widget.channelShows.length * widget.itemHeight,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: SingleChildScrollView(
+                            controller: _showsController,
+                            scrollDirection: Axis.horizontal,
+                            physics: const ClampingScrollPhysics(),
+                            child: Stack(
+                              // 👈 wrap both shows and now-indicator in same Stack
+                              children: [
+                                Column(
+                                  children: widget.channelShows
+                                      .map(
+                                          (channel) => buildChannelRow(channel))
+                                      .toList(),
+                                ),
+                                _buildNowIndicatorOverlay(), // 👈 now part of scrollable content
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                )
               ],
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildNowIndicatorOverlay() {
+    final now = DateTime.now();
+    final durationSinceBase = now.difference(_baseTime).inMinutes;
+    final leftOffset = getCalculatedWidth(durationSinceBase);
+    final totalHeight = widget.channelShows.length * widget.itemHeight;
+
+    return Positioned(
+      left: 0,
+      top: 0,
+      child: IgnorePointer(
+        child: Container(
+          width: leftOffset,
+          height: totalHeight,
+          decoration: BoxDecoration(
+            color: Colors.white.withAlpha(20), // semi-transparent background
+            border: Border(
+              right: BorderSide(
+                color: Colors.redAccent.withAlpha(90),
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -497,10 +546,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   }
 
   double getCalculatedWidth(int minutes) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final usableWidth = screenWidth * 0.8;
-    final perMinWidth = usableWidth / 60;
-    return perMinWidth * minutes;
+    return widget.pixelsPerMinute * minutes;
   }
 
   void _addPlaceholdersInChunks({
