@@ -42,3 +42,33 @@ class ShowItem {
     return ' ShowName :$showName StartTime :$showStartTime EndTime :$showEndTime';
   }
 }
+
+class EPGSlot {
+  final String id;
+  final DateTime start;
+  final DateTime end;
+  final ShowItem? show;
+  final bool isPlaceholder;
+
+  EPGSlot({
+    required this.id,
+    required this.start,
+    required this.end,
+    this.show,
+    this.isPlaceholder = false,
+  });
+
+  int get duration => end.difference(start).inMinutes;
+}
+
+class SelectedChannel {
+  String channelID;
+  int channelIndex;
+  int slotIndex; // Changed from showIndex to slotIndex
+
+  SelectedChannel({
+    required this.channelID,
+    required this.channelIndex,
+    required this.slotIndex,
+  });
+}

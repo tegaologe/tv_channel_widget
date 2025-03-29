@@ -22,6 +22,7 @@ class ChannelWidget extends StatefulWidget {
   final double pixelsPerMinute;
   final Duration durationPerScrollExtension;
   final bool moveToCurrentTime;
+  final SelectedChannel selectedChannel;
 
   const ChannelWidget({
     Key? key,
@@ -30,6 +31,7 @@ class ChannelWidget extends StatefulWidget {
     required this.channelBuilder,
     required this.showsBuilder,
     required this.placeholderBuilder,
+    required this.selectedChannel,
     this.channelWidth = 150.0,
     this.itemHeight = 100.0,
     this.verticalPadding = 10.0,
@@ -58,7 +60,6 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   late final int _slotsPerScrollExtension;
 
   final Map<int, TvChannel> _loadedChannels = {};
-  final Map<String, Widget> _memoizedShowWidgets = {};
 
   @override
   void initState() {
@@ -229,6 +230,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                                   height: widget.itemHeight,
                                   child: ChannelRow(
                                     channel: snapshot.data!,
+                                    selectedChannel: widget.selectedChannel,
                                     itemHeight: widget.itemHeight,
                                     getCalculatedWidth: getCalculatedWidth,
                                     showsBuilder: widget.showsBuilder,
@@ -260,79 +262,6 @@ class _ChannelWidgetState extends State<ChannelWidget> {
     final channel = await widget.channelLoader(index);
     _loadedChannels[index] = channel;
     return channel;
-  }
-
-  Widget _buildChannelRow(TvChannel channel) {
-    final timelineStart = _baseTime;
-    final timelineEnd =
-        timelineStart.add(Duration(minutes: _visibleSlotCount * 30));
-
-    return StreamBuilder<List<dynamic>>(
-      stream: channel.showItemsStream,
-      builder: (context, snapshot) {
-        final sortedShows = [...(snapshot.data ?? channel.showItems)]
-          ..sort((a, b) => a.showStartTime.compareTo(b.showStartTime));
-
-        List<Widget> children = [];
-        DateTime current = timelineStart;
-
-        for (final show in sortedShows) {
-          if (show.showEndTime.isBefore(timelineStart) ||
-              show.showStartTime.isAfter(timelineEnd)) {
-            continue;
-          }
-
-          if (show.showStartTime.isAfter(current)) {
-            _addPlaceholdersInChunks(
-                children: children, from: current, to: show.showStartTime);
-            current = show.showStartTime;
-          }
-
-          final duration =
-              show.showEndTime.difference(show.showStartTime).inMinutes;
-          final key = show.showID;
-
-          _memoizedShowWidgets.putIfAbsent(
-              key, () => widget.showsBuilder(context, show));
-
-          children.add(SizedBox(
-            width: getCalculatedWidth(duration),
-            height: widget.itemHeight,
-            child: _memoizedShowWidgets[key]!,
-          ));
-
-          current = show.showEndTime;
-        }
-
-        if (current.isBefore(timelineEnd)) {
-          _addPlaceholdersInChunks(
-              children: children, from: current, to: timelineEnd);
-        }
-
-        return Row(children: children);
-      },
-    );
-  }
-
-  void _addPlaceholdersInChunks({
-    required List<Widget> children,
-    required DateTime from,
-    required DateTime to,
-  }) {
-    DateTime current = from;
-    while (current.isBefore(to)) {
-      final next = current.add(const Duration(minutes: 30));
-      final chunkEnd = next.isBefore(to) ? next : to;
-      final chunkDuration = chunkEnd.difference(current).inMinutes;
-
-      children.add(SizedBox(
-        width: getCalculatedWidth(chunkDuration),
-        height: widget.itemHeight,
-        child: widget.placeholderBuilder(context, current),
-      ));
-
-      current = chunkEnd;
-    }
   }
 
   Widget _buildNowIndicatorOverlay() {
@@ -374,6 +303,7 @@ class ChannelRow extends StatefulWidget {
   final PlaceholderBuilder placeholderBuilder;
   final DateTime baseTime;
   final int visibleSlotCount;
+  final SelectedChannel selectedChannel;
 
   const ChannelRow({
     super.key,
@@ -384,6 +314,7 @@ class ChannelRow extends StatefulWidget {
     required this.placeholderBuilder,
     required this.baseTime,
     required this.visibleSlotCount,
+    required this.selectedChannel,
   });
 
   @override
@@ -409,62 +340,95 @@ class _ChannelRowState extends State<ChannelRow>
     return StreamBuilder<List<ShowItem>>(
       stream: widget.channel.showItemsStream,
       builder: (context, snapshot) {
-        final sortedShows = [...(snapshot.data ?? widget.channel.showItems)]
-          ..sort((a, b) => a.showStartTime.compareTo(b.showStartTime));
+        final shows = snapshot.data ?? widget.channel.showItems;
+        final slots = generateEPGSlots(shows, timelineStart, timelineEnd);
 
-        List<Widget> children = [];
-        DateTime current = timelineStart;
+        return Row(
+          children: slots.map((slot) {
+            final isSelected =
+                widget.selectedChannel.channelID == widget.channel.channelID &&
+                    widget.selectedChannel.slotIndex == slots.indexOf(slot);
 
-        for (final show in sortedShows) {
-          if (show.showEndTime.isBefore(timelineStart) ||
-              show.showStartTime.isAfter(timelineEnd)) {
-            continue;
-          }
-
-          if (show.showStartTime.isAfter(current)) {
-            _addPlaceholders(children, current, show.showStartTime);
-            current = show.showStartTime;
-          }
-
-          final duration =
-              show.showEndTime.difference(show.showStartTime).inMinutes;
-          final key = show.showID;
-
-          _memoizedShowWidgets.putIfAbsent(
-              key, () => widget.showsBuilder(context, show));
-
-          children.add(SizedBox(
-            width: widget.getCalculatedWidth(duration),
-            height: widget.itemHeight,
-            child: _memoizedShowWidgets[key]!,
-          ));
-
-          current = show.showEndTime;
-        }
-
-        if (current.isBefore(timelineEnd)) {
-          _addPlaceholders(children, current, timelineEnd);
-        }
-
-        return Row(children: children);
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  widget.selectedChannel.slotIndex = slots.indexOf(slot);
+                });
+              },
+              child: Container(
+                width: widget.getCalculatedWidth(slot.duration),
+                height: widget.itemHeight,
+                decoration: isSelected
+                    ? BoxDecoration(
+                        border: Border.all(color: Colors.blueAccent, width: 2),
+                        color: Colors.blue.withOpacity(0.2),
+                      )
+                    : null,
+                child: slot.isPlaceholder
+                    ? widget.placeholderBuilder(context, slot.start)
+                    : widget.showsBuilder(context, slot.show!),
+              ),
+            );
+          }).toList(),
+        );
       },
     );
   }
 
-  void _addPlaceholders(List<Widget> children, DateTime from, DateTime to) {
-    DateTime current = from;
-    while (current.isBefore(to)) {
-      final next = current.add(const Duration(minutes: 30));
-      final chunkEnd = next.isBefore(to) ? next : to;
-      final chunkDuration = chunkEnd.difference(current).inMinutes;
+  List<EPGSlot> generateEPGSlots(
+      List<ShowItem> shows, DateTime timelineStart, DateTime timelineEnd) {
+    List<EPGSlot> slots = [];
+    DateTime current = timelineStart;
 
-      children.add(SizedBox(
-        width: widget.getCalculatedWidth(chunkDuration),
-        height: widget.itemHeight,
-        child: widget.placeholderBuilder(context, current),
+    // Sort shows by start time
+    shows.sort((a, b) => a.showStartTime.compareTo(b.showStartTime));
+
+    for (final show in shows) {
+      if (show.showEndTime.isBefore(timelineStart)) continue;
+      if (show.showStartTime.isAfter(timelineEnd)) break;
+
+      // Add placeholder before show if there's a gap
+      if (show.showStartTime.isAfter(current)) {
+        slots.addAll(_createPlaceholderSlots(current, show.showStartTime));
+      }
+
+      // Add show slot
+      slots.add(EPGSlot(
+        id: show.showID,
+        start: show.showStartTime,
+        end: show.showEndTime,
+        show: show,
       ));
 
-      current = chunkEnd;
+      current = show.showEndTime;
     }
+
+    // Add remaining placeholders after last show
+    if (current.isBefore(timelineEnd)) {
+      slots.addAll(_createPlaceholderSlots(current, timelineEnd));
+    }
+
+    return slots;
+  }
+
+  List<EPGSlot> _createPlaceholderSlots(DateTime start, DateTime end) {
+    List<EPGSlot> placeholders = [];
+    DateTime current = start;
+
+    while (current.isBefore(end)) {
+      final next = current.add(Duration(minutes: 30));
+      final slotEnd = next.isBefore(end) ? next : end;
+
+      placeholders.add(EPGSlot(
+        id: 'placeholder_${current.millisecondsSinceEpoch}',
+        start: current,
+        end: slotEnd,
+        isPlaceholder: true,
+      ));
+
+      current = slotEnd;
+    }
+
+    return placeholders;
   }
 }
