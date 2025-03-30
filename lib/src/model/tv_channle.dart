@@ -59,6 +59,7 @@ class EPGSlot {
   });
 
   int get duration => end.difference(start).inMinutes;
+  DateTime get centerTime => start.add(end.difference(start) ~/ 2);
 }
 
 class SelectedChannel {

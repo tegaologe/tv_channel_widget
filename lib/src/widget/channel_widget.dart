@@ -9,6 +9,9 @@ typedef ShowBuilder = Widget Function(BuildContext context, ShowItem show);
 typedef PlaceholderBuilder = Widget Function(
     BuildContext context, DateTime slotStart);
 
+typedef SlotsComputedCallback = void Function(
+    String channelID, List<EPGSlot> slots);
+
 class ChannelWidget extends StatefulWidget {
   final int itemCount;
   final Future<TvChannel> Function(int index) channelLoader;
@@ -23,6 +26,7 @@ class ChannelWidget extends StatefulWidget {
   final Duration durationPerScrollExtension;
   final bool moveToCurrentTime;
   final SelectedChannel selectedChannel;
+  final SlotsComputedCallback? onSlotsComputed;
 
   const ChannelWidget({
     Key? key,
@@ -39,6 +43,7 @@ class ChannelWidget extends StatefulWidget {
     this.pixelsPerMinute = 2.0,
     required this.durationPerScrollExtension,
     this.moveToCurrentTime = false,
+    this.onSlotsComputed,
   }) : super(key: key);
 
   @override
@@ -230,6 +235,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                                   height: widget.itemHeight,
                                   child: ChannelRow(
                                     channel: snapshot.data!,
+                                    onSlotsComputed: widget.onSlotsComputed,
                                     selectedChannel: widget.selectedChannel,
                                     itemHeight: widget.itemHeight,
                                     getCalculatedWidth: getCalculatedWidth,
@@ -304,6 +310,7 @@ class ChannelRow extends StatefulWidget {
   final DateTime baseTime;
   final int visibleSlotCount;
   final SelectedChannel selectedChannel;
+  final SlotsComputedCallback? onSlotsComputed;
 
   const ChannelRow({
     super.key,
@@ -315,6 +322,7 @@ class ChannelRow extends StatefulWidget {
     required this.baseTime,
     required this.visibleSlotCount,
     required this.selectedChannel,
+    this.onSlotsComputed,
   });
 
   @override
@@ -323,8 +331,6 @@ class ChannelRow extends StatefulWidget {
 
 class _ChannelRowState extends State<ChannelRow>
     with AutomaticKeepAliveClientMixin {
-  final Map<String, Widget> _memoizedShowWidgets = {};
-
   @override
   bool get wantKeepAlive => true;
 
@@ -342,7 +348,7 @@ class _ChannelRowState extends State<ChannelRow>
       builder: (context, snapshot) {
         final shows = snapshot.data ?? widget.channel.showItems;
         final slots = generateEPGSlots(shows, timelineStart, timelineEnd);
-
+        widget.onSlotsComputed?.call(widget.channel.channelID, slots);
         return Row(
           children: slots.map((slot) {
             final isSelected =
@@ -416,7 +422,7 @@ class _ChannelRowState extends State<ChannelRow>
     DateTime current = start;
 
     while (current.isBefore(end)) {
-      final next = current.add(Duration(minutes: 30));
+      final next = current.add(const Duration(minutes: 30));
       final slotEnd = next.isBefore(end) ? next : end;
 
       placeholders.add(EPGSlot(
