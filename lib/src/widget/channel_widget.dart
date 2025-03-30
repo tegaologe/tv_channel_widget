@@ -5,9 +5,10 @@ import 'package:tv_channel_widget/src/model/tv_channle.dart';
 
 typedef ItemBuilder = Widget Function(
     BuildContext context, int index, TvChannel channel);
-typedef ShowBuilder = Widget Function(BuildContext context, ShowItem show);
-typedef PlaceholderBuilder = Widget Function(
-    BuildContext context, DateTime slotStart);
+typedef ShowBuilder = Widget Function(BuildContext context, ShowItem show,
+    bool isSelect, String channelID, bool startCutOff);
+typedef PlaceholderBuilder = Widget Function(BuildContext context,
+    DateTime slotStart, bool isSelect, String channelID, bool startCutOff);
 
 typedef SlotsComputedCallback = void Function(
     String channelID, List<EPGSlot> slots);
@@ -25,7 +26,7 @@ class ChannelWidget extends StatefulWidget {
   final double pixelsPerMinute;
   final Duration durationPerScrollExtension;
   final bool moveToCurrentTime;
-  final SelectedChannel selectedChannel;
+  final ValueNotifier<SelectedChannel> selectedChannel;
   final SlotsComputedCallback? onSlotsComputed;
 
   const ChannelWidget({
@@ -63,8 +64,6 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   DateTime _currentVisibleDate = DateTime.now();
   int _visibleSlotCount = 48;
   late final int _slotsPerScrollExtension;
-
-  final Map<int, TvChannel> _loadedChannels = {};
 
   @override
   void initState() {
@@ -181,6 +180,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
               SizedBox(
                 width: widget.channelWidth,
                 child: ListView.builder(
+                  cacheExtent: 3000,
                   controller: _channelListController,
                   itemCount: widget.itemCount,
                   physics: const ClampingScrollPhysics(),
@@ -217,6 +217,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                       SizedBox(
                         width: getCalculatedWidth(_visibleSlotCount * 30),
                         child: ListView.builder(
+                          cacheExtent: 3000,
                           controller: _showListController,
                           physics: const ClampingScrollPhysics(),
                           itemCount: widget.itemCount,
@@ -263,11 +264,23 @@ class _ChannelWidgetState extends State<ChannelWidget> {
     );
   }
 
-  Future<TvChannel> _loadChannel(int index) async {
-    if (_loadedChannels.containsKey(index)) return _loadedChannels[index]!;
-    final channel = await widget.channelLoader(index);
-    _loadedChannels[index] = channel;
-    return channel;
+  final LruCache<int, TvChannel> _channelCache = LruCache(300); // adjust size
+  final LruCache<int, Future<TvChannel>> _futureCache = LruCache(300);
+
+  Future<TvChannel> _loadChannel(int index) {
+    final cachedChannel = _channelCache.get(index);
+    if (cachedChannel != null) return Future.value(cachedChannel);
+
+    final cachedFuture = _futureCache.get(index);
+    if (cachedFuture != null) return cachedFuture;
+
+    final future = widget.channelLoader(index).then((channel) {
+      _channelCache.put(index, channel);
+      return channel;
+    });
+
+    _futureCache.put(index, future);
+    return future;
   }
 
   Widget _buildNowIndicatorOverlay() {
@@ -309,7 +322,7 @@ class ChannelRow extends StatefulWidget {
   final PlaceholderBuilder placeholderBuilder;
   final DateTime baseTime;
   final int visibleSlotCount;
-  final SelectedChannel selectedChannel;
+  final ValueNotifier<SelectedChannel> selectedChannel;
   final SlotsComputedCallback? onSlotsComputed;
 
   const ChannelRow({
@@ -329,14 +342,14 @@ class ChannelRow extends StatefulWidget {
   State<ChannelRow> createState() => _ChannelRowState();
 }
 
-class _ChannelRowState extends State<ChannelRow>
-    with AutomaticKeepAliveClientMixin {
+class _ChannelRowState extends State<ChannelRow> {
+  // with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true;
+  // bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    // super.build(context);
 
     final timelineStart = widget.baseTime;
     final timelineEnd = timelineStart.add(Duration(
@@ -349,33 +362,37 @@ class _ChannelRowState extends State<ChannelRow>
         final shows = snapshot.data ?? widget.channel.showItems;
         final slots = generateEPGSlots(shows, timelineStart, timelineEnd);
         widget.onSlotsComputed?.call(widget.channel.channelID, slots);
-        return Row(
-          children: slots.map((slot) {
-            final isSelected =
-                widget.selectedChannel.channelID == widget.channel.channelID &&
-                    widget.selectedChannel.slotIndex == slots.indexOf(slot);
-
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  widget.selectedChannel.slotIndex = slots.indexOf(slot);
-                });
-              },
-              child: Container(
-                width: widget.getCalculatedWidth(slot.duration),
-                height: widget.itemHeight,
-                decoration: isSelected
-                    ? BoxDecoration(
-                        border: Border.all(color: Colors.blueAccent, width: 2),
-                        color: Colors.blue.withOpacity(0.2),
-                      )
-                    : null,
-                child: slot.isPlaceholder
-                    ? widget.placeholderBuilder(context, slot.start)
-                    : widget.showsBuilder(context, slot.show!),
-              ),
+        return ValueListenableBuilder<SelectedChannel>(
+          valueListenable: widget.selectedChannel,
+          builder: (context, selected, _) {
+            return Row(
+              children: slots.map((slot) {
+                final isSelected =
+                    selected.channelID == widget.channel.channelID &&
+                        selected.slotIndex == slots.indexOf(slot);
+                final bool startCutOff = slot.start.isBefore(widget.baseTime);
+                return RepaintBoundary(
+                  child: GestureDetector(
+                    onTap: () {
+                      widget.selectedChannel.value = selected.copyWith(
+                        slotIndex: slots.indexOf(slot),
+                        channelID: widget.channel.channelID,
+                      );
+                    },
+                    child: SizedBox(
+                      width: widget.getCalculatedWidth(slot.duration),
+                      height: widget.itemHeight,
+                      child: slot.isPlaceholder
+                          ? widget.placeholderBuilder(context, slot.start,
+                              isSelected, widget.channel.channelID, startCutOff)
+                          : widget.showsBuilder(context, slot.show!, isSelected,
+                              widget.channel.channelID, startCutOff),
+                    ),
+                  ),
+                );
+              }).toList(),
             );
-          }).toList(),
+          },
         );
       },
     );

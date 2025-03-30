@@ -6,6 +6,7 @@ class TvChannel {
   final List<ShowItem> showItems;
   final dynamic imageStream;
   final dynamic showItemsStream;
+  String streamIcon;
 
   TvChannel({
     required this.channelID,
@@ -14,6 +15,7 @@ class TvChannel {
     required this.channelLogoBase64,
     this.imageStream,
     this.showItemsStream,
+    this.streamIcon = '',
   });
 }
 
@@ -67,9 +69,47 @@ class SelectedChannel {
   int channelIndex;
   int slotIndex; // Changed from showIndex to slotIndex
 
-  SelectedChannel({
-    required this.channelID,
-    required this.channelIndex,
-    required this.slotIndex,
-  });
+  SelectedChannel(
+      {required this.channelID,
+      required this.channelIndex,
+      required this.slotIndex});
+  SelectedChannel copyWith({
+    String? channelID,
+    int? channelIndex,
+    int? slotIndex,
+  }) {
+    return SelectedChannel(
+      channelID: channelID ?? this.channelID,
+      channelIndex: channelIndex ?? this.channelIndex,
+      slotIndex: slotIndex ?? this.slotIndex,
+    );
+  }
+}
+
+class LruCache<K, V> {
+  final int capacity;
+  final _cache = <K, V>{};
+  final _usageOrder = <K>[];
+
+  LruCache(this.capacity);
+
+  V? get(K key) {
+    if (_cache.containsKey(key)) {
+      _usageOrder.remove(key);
+      _usageOrder.insert(0, key);
+      return _cache[key];
+    }
+    return null;
+  }
+
+  void put(K key, V value) {
+    if (_cache.containsKey(key)) {
+      _usageOrder.remove(key);
+    } else if (_cache.length >= capacity) {
+      final oldest = _usageOrder.removeLast();
+      _cache.remove(oldest);
+    }
+    _cache[key] = value;
+    _usageOrder.insert(0, key);
+  }
 }
