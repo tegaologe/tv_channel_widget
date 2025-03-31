@@ -365,12 +365,19 @@ class _ChannelRowState extends State<ChannelRow> {
         return ValueListenableBuilder<SelectedChannel>(
           valueListenable: widget.selectedChannel,
           builder: (context, selected, _) {
+            bool cutoffApplied = false;
             return Row(
               children: slots.map((slot) {
                 final isSelected =
                     selected.channelID == widget.channel.channelID &&
                         selected.slotIndex == slots.indexOf(slot);
-                final bool startCutOff = slot.start.isBefore(widget.baseTime);
+
+                bool startCutOff = false;
+                if (!cutoffApplied && slot.start.isBefore(DateTime.now())) {
+                  startCutOff = true;
+                  cutoffApplied = true;
+                }
+
                 return RepaintBoundary(
                   child: GestureDetector(
                     onTap: () {
