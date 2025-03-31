@@ -48,10 +48,10 @@ class ChannelWidget extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<ChannelWidget> createState() => _ChannelWidgetState();
+  State<ChannelWidget> createState() => ChannelWidgetState();
 }
 
-class _ChannelWidgetState extends State<ChannelWidget> {
+class ChannelWidgetState extends State<ChannelWidget> {
   late final LinkedScrollControllerGroup _horizontalGroup;
   late final ScrollController _timelineController;
   late final ScrollController _showsScrollController;
@@ -60,8 +60,12 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   late final ScrollController _channelListController;
   late final ScrollController _showListController;
 
-  late final DateTime _baseTime;
+  ScrollController get verticalController => _channelListController;
+  ScrollController get horizontalController => _showsScrollController;
+
+  late final DateTime baseTime;
   DateTime _currentVisibleDate = DateTime.now();
+  DateTime get exposedBaseTime => baseTime;
   int _visibleSlotCount = 48;
   late final int _slotsPerScrollExtension;
 
@@ -69,7 +73,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _baseTime = DateTime(
+    baseTime = DateTime(
         now.year, now.month, now.day, now.hour, now.minute >= 30 ? 30 : 0);
 
     _horizontalGroup = LinkedScrollControllerGroup();
@@ -92,7 +96,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
 
   void _scrollToCurrentTime() {
     final now = DateTime.now();
-    final diffMin = now.difference(_baseTime).inMinutes;
+    final diffMin = now.difference(baseTime).inMinutes;
     final scrollPosition = widget.pixelsPerMinute * diffMin;
     _timelineController.jumpTo(scrollPosition);
     _showsScrollController.jumpTo(scrollPosition);
@@ -109,8 +113,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
     }
 
     final minutesOffset = currentScroll / widget.pixelsPerMinute;
-    final scrolledTime =
-        _baseTime.add(Duration(minutes: minutesOffset.round()));
+    final scrolledTime = baseTime.add(Duration(minutes: minutesOffset.round()));
     if (!isSameDay(scrolledTime, _currentVisibleDate)) {
       setState(() {
         _currentVisibleDate = scrolledTime;
@@ -157,7 +160,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                   physics: const ClampingScrollPhysics(),
                   itemCount: _visibleSlotCount,
                   itemBuilder: (context, index) {
-                    final time = _baseTime.add(Duration(minutes: index * 30));
+                    final time = baseTime.add(Duration(minutes: index * 30));
                     return SizedBox(
                       width: getCalculatedWidth(30),
                       child: Text(
@@ -243,7 +246,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
                                     showsBuilder: widget.showsBuilder,
                                     placeholderBuilder:
                                         widget.placeholderBuilder,
-                                    baseTime: _baseTime,
+                                    baseTime: baseTime,
                                     visibleSlotCount: _visibleSlotCount,
                                   ),
                                 );
@@ -285,7 +288,7 @@ class _ChannelWidgetState extends State<ChannelWidget> {
 
   Widget _buildNowIndicatorOverlay() {
     final now = DateTime.now();
-    final minutes = now.difference(_baseTime).inMinutes;
+    final minutes = now.difference(baseTime).inMinutes;
     final offset = getCalculatedWidth(minutes);
 
     return Positioned(
