@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 import 'package:tv_channel_widget/src/model/tv_channle.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 
 typedef ItemBuilder = Widget Function(
     BuildContext context, int index, TvChannel channel);
@@ -154,7 +155,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
             Expanded(
               child: SizedBox(
                 height: widget.timerRowHeight,
-                child: ListView.builder(
+                child: SuperListView.builder(
                   controller: _timelineController,
                   scrollDirection: Axis.horizontal,
                   physics: const ClampingScrollPhysics(),
@@ -182,7 +183,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
               // Channel Labels
               SizedBox(
                 width: widget.channelWidth,
-                child: ListView.builder(
+                child: SuperListView.builder(
                   cacheExtent: 3000,
                   controller: _channelListController,
                   itemCount: widget.itemCount,
@@ -214,12 +215,12 @@ class ChannelWidgetState extends State<ChannelWidget> {
                 child: SingleChildScrollView(
                   controller: _showsScrollController,
                   scrollDirection: Axis.horizontal,
-                  physics: const ClampingScrollPhysics(),
+                  //physics: const ClampingScrollPhysics(),
                   child: Stack(
                     children: [
                       SizedBox(
                         width: getCalculatedWidth(_visibleSlotCount * 30),
-                        child: ListView.builder(
+                        child: SuperListView.builder(
                           cacheExtent: 3000,
                           controller: _showListController,
                           physics: const ClampingScrollPhysics(),
