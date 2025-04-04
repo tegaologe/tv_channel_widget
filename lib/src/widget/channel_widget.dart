@@ -138,46 +138,59 @@ class ChannelWidgetState extends State<ChannelWidget> {
     return Column(
       children: [
         // Timeline Header
-        Row(
-          children: [
-            SizedBox(
-              width: widget.channelWidth,
-              child: Container(
-                height: widget.timerRowHeight,
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.only(left: 8),
-                child: Text(
-                  DateFormat('EEE, MMM d').format(_currentVisibleDate),
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                ),
+
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color:
+                    Colors.grey.withAlpha(60), // Or another color you prefer.
+                width: 0.8, // Adjust the thickness as needed.
               ),
             ),
-            Expanded(
-              child: SizedBox(
-                height: widget.timerRowHeight,
-                child: SuperListView.builder(
-                  addRepaintBoundaries: true,
-                  addAutomaticKeepAlives: true,
-                  delayPopulatingCacheArea: true,
-                  cacheExtent: 300,
-                  controller: _timelineController,
-                  scrollDirection: Axis.horizontal,
-                  physics: const ClampingScrollPhysics(),
-                  itemCount: _visibleSlotCount,
-                  itemBuilder: (context, index) {
-                    final time = baseTime.add(Duration(minutes: index * 30));
-                    return SizedBox(
-                      width: getCalculatedWidth(30),
-                      child: Text(
-                        DateFormat('hh:mm a').format(time),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    );
-                  },
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: widget.channelWidth,
+                child: Container(
+                  height: widget.timerRowHeight,
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(left: 10),
+                  child: Text(
+                    DateFormat('EEE, MMM d').format(_currentVisibleDate),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
                 ),
               ),
-            ),
-          ],
+              Expanded(
+                child: SizedBox(
+                  height: widget.timerRowHeight,
+                  child: SuperListView.builder(
+                    addRepaintBoundaries: true,
+                    addAutomaticKeepAlives: true,
+                    delayPopulatingCacheArea: true,
+                    cacheExtent: 300,
+                    controller: _timelineController,
+                    scrollDirection: Axis.horizontal,
+                    physics: const ClampingScrollPhysics(),
+                    itemCount: _visibleSlotCount,
+                    itemBuilder: (context, index) {
+                      final time = baseTime.add(Duration(minutes: index * 30));
+                      return SizedBox(
+                        width: getCalculatedWidth(30),
+                        child: Text(
+                          DateFormat('hh:mm a').format(time),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
 
         // Main Grid
@@ -303,21 +316,34 @@ class ChannelWidgetState extends State<ChannelWidget> {
     final offset = getCalculatedWidth(minutes);
 
     return Positioned(
-      left: 0,
+      left: offset - 1, // Center the 2-pixel line at the computed offset.
       top: 0,
       bottom: 0,
       child: IgnorePointer(
-        child: Container(
-          width: offset,
-          decoration: BoxDecoration(
-            color: Colors.white.withAlpha(20),
-            border: Border(
-              right: BorderSide(
-                color: Colors.redAccent.withAlpha(90), // red line
-                width: 2,
+        child: Stack(
+          alignment: Alignment.topCenter,
+          children: [
+            // Red circle at the top of the line.
+
+            SizedBox(
+              width: 2,
+              // Use MediaQuery to cover the available height or wrap in a container with fixed height.
+              height: MediaQuery.of(context).size.height,
+              child: CustomPaint(
+                painter: DashedLinePainter(
+                  dashWidth: 5,
+                  dashSpace: 6,
+                  color: const Color.fromRGBO(93, 104, 117, 1),
+                ),
               ),
             ),
-          ),
+/*
+            Container(
+              width: 1,
+              color: const Color.fromARGB(204, 115, 122, 136),
+            ),
+            */
+          ],
         ),
       ),
     );
@@ -475,4 +501,38 @@ class _ChannelRowState extends State<ChannelRow> {
 
     return placeholders;
   }
+}
+
+class DashedLinePainter extends CustomPainter {
+  final double dashWidth;
+  final double dashSpace;
+  final Color color;
+
+  DashedLinePainter({
+    this.dashWidth = 4,
+    this.dashSpace = 4,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+
+    double startY = 0;
+    while (startY < size.height) {
+      final endY =
+          (startY + dashWidth < size.height) ? startY + dashWidth : size.height;
+      canvas.drawLine(
+        Offset(0, startY),
+        Offset(0, endY),
+        paint,
+      );
+      startY += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
