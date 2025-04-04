@@ -160,7 +160,10 @@ class ChannelWidgetState extends State<ChannelWidget> {
                   padding: const EdgeInsets.only(left: 10),
                   child: Text(
                     DateFormat('EEE, MMM d').format(_currentVisibleDate),
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -182,7 +185,10 @@ class ChannelWidgetState extends State<ChannelWidget> {
                         width: getCalculatedWidth(30),
                         child: Text(
                           DateFormat('hh:mm a').format(time),
-                          style: const TextStyle(color: Colors.white),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold),
                         ),
                       );
                     },
@@ -332,8 +338,8 @@ class ChannelWidgetState extends State<ChannelWidget> {
               child: CustomPaint(
                 painter: DashedLinePainter(
                   dashWidth: 5,
-                  dashSpace: 6,
-                  color: const Color.fromRGBO(93, 104, 117, 1),
+                  dashSpace: 4,
+                  color: const Color.fromARGB(255, 138, 154, 173),
                 ),
               ),
             ),
