@@ -156,6 +156,10 @@ class ChannelWidgetState extends State<ChannelWidget> {
               child: SizedBox(
                 height: widget.timerRowHeight,
                 child: SuperListView.builder(
+                  addRepaintBoundaries: true,
+                  addAutomaticKeepAlives: true,
+                  delayPopulatingCacheArea: true,
+                  cacheExtent: 300,
                   controller: _timelineController,
                   scrollDirection: Axis.horizontal,
                   physics: const ClampingScrollPhysics(),
@@ -184,7 +188,10 @@ class ChannelWidgetState extends State<ChannelWidget> {
               SizedBox(
                 width: widget.channelWidth,
                 child: SuperListView.builder(
-                  cacheExtent: 3000,
+                  cacheExtent: 300,
+                  addRepaintBoundaries: true,
+                  addAutomaticKeepAlives: true,
+                  delayPopulatingCacheArea: true,
                   controller: _channelListController,
                   itemCount: widget.itemCount,
                   physics: const ClampingScrollPhysics(),
@@ -221,7 +228,10 @@ class ChannelWidgetState extends State<ChannelWidget> {
                       SizedBox(
                         width: getCalculatedWidth(_visibleSlotCount * 30),
                         child: SuperListView.builder(
-                          cacheExtent: 3000,
+                          cacheExtent: 300,
+                          addRepaintBoundaries: true,
+                          addAutomaticKeepAlives: true,
+                          delayPopulatingCacheArea: true,
                           controller: _showListController,
                           physics: const ClampingScrollPhysics(),
                           itemCount: widget.itemCount,
