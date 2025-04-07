@@ -159,7 +159,8 @@ class ChannelWidgetState extends State<ChannelWidget> {
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.only(left: 10),
                   child: Text(
-                    DateFormat('EEE, MMM d').format(_currentVisibleDate),
+                    DateFormat('EEE, MMM d, h:mm a')
+                        .format(_currentVisibleDate),
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -322,6 +323,41 @@ class ChannelWidgetState extends State<ChannelWidget> {
     final offset = getCalculatedWidth(minutes);
 
     return Positioned(
+      left: 0,
+      top: 0,
+      bottom: 0,
+      child: IgnorePointer(
+        child: Container(
+          width: offset,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withAlpha(2),
+                Colors.white.withAlpha(20),
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            border: Border(
+              right: BorderSide(
+                color: Colors.redAccent.withAlpha(90), // red line
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /*
+
+  Widget _buildNowIndicatorOverlay() {
+    final now = DateTime.now();
+    final minutes = now.difference(baseTime).inMinutes;
+    final offset = getCalculatedWidth(minutes);
+
+    return Positioned(
       left: offset - 1, // Center the 2-pixel line at the computed offset.
       top: 0,
       bottom: 0,
@@ -354,7 +390,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
       ),
     );
   }
-
+*/
   bool isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
@@ -465,12 +501,20 @@ class _ChannelRowState extends State<ChannelRow> {
 
       // Add placeholder before show if there's a gap
       if (show.showStartTime.isAfter(current)) {
-        slots.addAll(_createPlaceholderSlots(current, show.showStartTime));
+        slots.addAll(_createPlaceholderSlots(
+            current,
+            show.showStartTime,
+            widget.channel.channelID,
+            widget.channel.serviceProvider,
+            widget.channel.epgid));
       }
 
       // Add show slot
       slots.add(EPGSlot(
         id: show.showID,
+        epgid: show.epgid,
+        serviceProvider: show.serviceProvider,
+        channelID: show.channelID,
         start: show.showStartTime,
         end: show.showEndTime,
         show: show,
@@ -481,13 +525,20 @@ class _ChannelRowState extends State<ChannelRow> {
 
     // Add remaining placeholders after last show
     if (current.isBefore(timelineEnd)) {
-      slots.addAll(_createPlaceholderSlots(current, timelineEnd));
+      slots.addAll(_createPlaceholderSlots(
+        current,
+        timelineEnd,
+        widget.channel.channelID,
+        widget.channel.serviceProvider,
+        widget.channel.epgid,
+      ));
     }
 
     return slots;
   }
 
-  List<EPGSlot> _createPlaceholderSlots(DateTime start, DateTime end) {
+  List<EPGSlot> _createPlaceholderSlots(DateTime start, DateTime end,
+      String channelID, String serviceProvider, String epgid) {
     List<EPGSlot> placeholders = [];
     DateTime current = start;
 
@@ -496,6 +547,9 @@ class _ChannelRowState extends State<ChannelRow> {
       final slotEnd = next.isBefore(end) ? next : end;
 
       placeholders.add(EPGSlot(
+        epgid: epgid,
+        channelID: channelID,
+        serviceProvider: serviceProvider,
         id: 'placeholder_${current.millisecondsSinceEpoch}',
         start: current,
         end: slotEnd,
@@ -507,38 +561,4 @@ class _ChannelRowState extends State<ChannelRow> {
 
     return placeholders;
   }
-}
-
-class DashedLinePainter extends CustomPainter {
-  final double dashWidth;
-  final double dashSpace;
-  final Color color;
-
-  DashedLinePainter({
-    this.dashWidth = 4,
-    this.dashSpace = 4,
-    required this.color,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
-
-    double startY = 0;
-    while (startY < size.height) {
-      final endY =
-          (startY + dashWidth < size.height) ? startY + dashWidth : size.height;
-      canvas.drawLine(
-        Offset(0, startY),
-        Offset(0, endY),
-        paint,
-      );
-      startY += dashWidth + dashSpace;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
