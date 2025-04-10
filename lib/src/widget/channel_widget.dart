@@ -61,6 +61,9 @@ class ChannelWidgetState extends State<ChannelWidget> {
   late final ScrollController _channelListController;
   late final ScrollController _showListController;
 
+  late final ListController channelListController;
+  late final ListController showListController;
+
   ScrollController get verticalController => _channelListController;
   ScrollController get horizontalController => _showsScrollController;
 
@@ -102,7 +105,8 @@ class ChannelWidgetState extends State<ChannelWidget> {
     final now = DateTime.now();
     baseTime = DateTime(
         now.year, now.month, now.day, now.hour, now.minute >= 30 ? 30 : 0);
-
+    channelListController = ListController();
+    showListController = ListController();
     _horizontalGroup = LinkedScrollControllerGroup();
     _timelineController = _horizontalGroup.addAndGet();
     _showsScrollController = _horizontalGroup.addAndGet();
@@ -154,6 +158,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
     _showsScrollController.dispose();
     _channelListController.dispose();
     _showListController.dispose();
+    channelListController.dispose();
     super.dispose();
   }
 
@@ -239,6 +244,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
                   addAutomaticKeepAlives: true,
                   delayPopulatingCacheArea: true,
                   controller: _channelListController,
+                  listController: channelListController,
                   itemCount: widget.itemCount,
                   physics: const ClampingScrollPhysics(),
                   itemBuilder: (context, index) {
@@ -268,13 +274,13 @@ class ChannelWidgetState extends State<ChannelWidget> {
                 child: SingleChildScrollView(
                   controller: _showsScrollController,
                   scrollDirection: Axis.horizontal,
-                  //physics: const ClampingScrollPhysics(),
                   child: Stack(
                     children: [
                       SizedBox(
                         width: getCalculatedWidth(_visibleSlotCount * 30),
                         child: SuperListView.builder(
                           cacheExtent: 100,
+                          listController: showListController,
                           addRepaintBoundaries: true,
                           addAutomaticKeepAlives: true,
                           delayPopulatingCacheArea: true,
