@@ -27,7 +27,7 @@ class ChannelWidget extends StatefulWidget {
   final double pixelsPerMinute;
   final Duration durationPerScrollExtension;
   final bool moveToCurrentTime;
-  final ValueNotifier<SelectedChannel> selectedChannel;
+  final SelectedChannel selectedChannel;
   final SlotsComputedCallback? onSlotsComputed;
 
   const ChannelWidget({
@@ -69,6 +69,32 @@ class ChannelWidgetState extends State<ChannelWidget> {
   DateTime get exposedBaseTime => baseTime;
   int _visibleSlotCount = 48;
   late final int _slotsPerScrollExtension;
+
+  @override
+  void didUpdateWidget(covariant ChannelWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Check if the channel list has changed
+    if (widget.itemCount != oldWidget.itemCount) {
+      // Clear caches
+      _channelCache.clear();
+      _futureCache.clear();
+
+      // Reset scroll positions.
+      // Using addPostFrameCallback ensures that the controllers are attached.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_channelListController.hasClients) {
+          _channelListController.jumpTo(0.0);
+        }
+        if (_showListController.hasClients) {
+          _showListController.jumpTo(0.0);
+        }
+        if (_timelineController.hasClients) {
+          _timelineController.jumpTo(0.0);
+        }
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -175,7 +201,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
                     addRepaintBoundaries: true,
                     addAutomaticKeepAlives: true,
                     delayPopulatingCacheArea: true,
-                    cacheExtent: 300,
+                    cacheExtent: 100,
                     controller: _timelineController,
                     scrollDirection: Axis.horizontal,
                     physics: const ClampingScrollPhysics(),
@@ -208,7 +234,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
               SizedBox(
                 width: widget.channelWidth,
                 child: SuperListView.builder(
-                  cacheExtent: 300,
+                  cacheExtent: 100,
                   addRepaintBoundaries: true,
                   addAutomaticKeepAlives: true,
                   delayPopulatingCacheArea: true,
@@ -248,7 +274,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
                       SizedBox(
                         width: getCalculatedWidth(_visibleSlotCount * 30),
                         child: SuperListView.builder(
-                          cacheExtent: 300,
+                          cacheExtent: 100,
                           addRepaintBoundaries: true,
                           addAutomaticKeepAlives: true,
                           delayPopulatingCacheArea: true,
@@ -404,10 +430,10 @@ class ChannelRow extends StatefulWidget {
   final PlaceholderBuilder placeholderBuilder;
   final DateTime baseTime;
   final int visibleSlotCount;
-  final ValueNotifier<SelectedChannel> selectedChannel;
+  SelectedChannel selectedChannel;
   final SlotsComputedCallback? onSlotsComputed;
 
-  const ChannelRow({
+  ChannelRow({
     super.key,
     required this.channel,
     required this.itemHeight,
@@ -444,44 +470,40 @@ class _ChannelRowState extends State<ChannelRow> {
         final shows = snapshot.data ?? widget.channel.showItems;
         final slots = generateEPGSlots(shows, timelineStart, timelineEnd);
         widget.onSlotsComputed?.call(widget.channel.channelID, slots);
-        return ValueListenableBuilder<SelectedChannel>(
-          valueListenable: widget.selectedChannel,
-          builder: (context, selected, _) {
-            bool cutoffApplied = false;
-            return Row(
-              children: slots.map((slot) {
-                final isSelected =
-                    selected.channelID == widget.channel.channelID &&
-                        selected.slotIndex == slots.indexOf(slot);
 
-                bool startCutOff = false;
-                if (!cutoffApplied && slot.start.isBefore(DateTime.now())) {
-                  startCutOff = true;
-                  cutoffApplied = true;
-                }
+        bool cutoffApplied = false;
+        return Row(
+          children: slots.map((slot) {
+            final isSelected =
+                widget.selectedChannel.channelID == widget.channel.channelID &&
+                    widget.selectedChannel.slotIndex == slots.indexOf(slot);
 
-                return RepaintBoundary(
-                  child: GestureDetector(
-                    onTap: () {
-                      widget.selectedChannel.value = selected.copyWith(
-                        slotIndex: slots.indexOf(slot),
-                        channelID: widget.channel.channelID,
-                      );
-                    },
-                    child: SizedBox(
-                      width: widget.getCalculatedWidth(slot.duration),
-                      height: widget.itemHeight,
-                      child: slot.isPlaceholder
-                          ? widget.placeholderBuilder(context, slot.start,
-                              isSelected, widget.channel.channelID, startCutOff)
-                          : widget.showsBuilder(context, slot.show!, isSelected,
-                              widget.channel.channelID, startCutOff),
-                    ),
-                  ),
-                );
-              }).toList(),
+            bool startCutOff = false;
+            if (!cutoffApplied && slot.start.isBefore(DateTime.now())) {
+              startCutOff = true;
+              cutoffApplied = true;
+            }
+
+            return RepaintBoundary(
+              child: GestureDetector(
+                onTap: () {
+                  widget.selectedChannel = widget.selectedChannel.copyWith(
+                    slotIndex: slots.indexOf(slot),
+                    channelID: widget.channel.channelID,
+                  );
+                },
+                child: SizedBox(
+                  width: widget.getCalculatedWidth(slot.duration),
+                  height: widget.itemHeight,
+                  child: slot.isPlaceholder
+                      ? widget.placeholderBuilder(context, slot.start,
+                          isSelected, widget.channel.channelID, startCutOff)
+                      : widget.showsBuilder(context, slot.show!, isSelected,
+                          widget.channel.channelID, startCutOff),
+                ),
+              ),
             );
-          },
+          }).toList(),
         );
       },
     );

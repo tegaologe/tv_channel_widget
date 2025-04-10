@@ -141,4 +141,9 @@ class LruCache<K, V> {
     _cache[key] = value;
     _usageOrder.insert(0, key);
   }
+
+  void clear() {
+    _cache.clear();
+    _usageOrder.clear();
+  }
 }
