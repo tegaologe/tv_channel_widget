@@ -31,7 +31,7 @@ class ChannelWidget extends StatefulWidget {
   final SlotsComputedCallback? onSlotsComputed;
 
   const ChannelWidget({
-    Key? key,
+    super.key,
     required this.itemCount,
     required this.channelLoader,
     required this.channelBuilder,
@@ -46,7 +46,7 @@ class ChannelWidget extends StatefulWidget {
     required this.durationPerScrollExtension,
     this.moveToCurrentTime = false,
     this.onSlotsComputed,
-  }) : super(key: key);
+  });
 
   @override
   State<ChannelWidget> createState() => ChannelWidgetState();
