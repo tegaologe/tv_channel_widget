@@ -456,14 +456,14 @@ class ChannelRow extends StatefulWidget {
   State<ChannelRow> createState() => _ChannelRowState();
 }
 
-class _ChannelRowState extends State<ChannelRow> {
-  // with AutomaticKeepAliveClientMixin {
+class _ChannelRowState extends State<ChannelRow>
+    with AutomaticKeepAliveClientMixin {
   @override
-  // bool get wantKeepAlive => true;
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    // super.build(context);
+    super.build(context);
 
     final timelineStart = widget.baseTime;
     final timelineEnd = timelineStart.add(Duration(
