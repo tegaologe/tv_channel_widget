@@ -243,6 +243,44 @@ class ChannelWidgetState extends State<ChannelWidget> {
           child: Row(
             children: [
               // Channel Labels
+              /*
+              SizedBox(
+                width: widget.channelWidth,
+                child: CustomScrollView(
+                  controller: _channelListController,
+                  slivers: [
+                    SuperSliverList.builder(
+                      listController: channelListController,
+                      extentEstimation: (index, m) => widget.itemHeight,
+                      itemCount: widget.itemCount,
+                      itemBuilder: (context, index) {
+                        return FutureBuilder<TvChannel>(
+                          future: _loadChannel(index),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return SizedBox(
+                                height: widget.itemHeight,
+                                child: const Center(
+                                    child: CircularProgressIndicator()),
+                              );
+                            }
+                            return SizedBox(
+                              height: widget.itemHeight,
+                              child: widget.channelBuilder(
+                                context,
+                                index,
+                                snapshot.data!,
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+*/
+
               SizedBox(
                 width: widget.channelWidth,
                 child: SuperListView.builder(
@@ -277,6 +315,66 @@ class ChannelWidgetState extends State<ChannelWidget> {
               ),
 
               // Shows Grid with Now Indicator
+              /*
+              Expanded(
+                child: Stack(
+                  children: [
+                    SingleChildScrollView(
+                      controller: _showsScrollController,
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: getCalculatedWidth(_visibleSlotCount * 30),
+                        child: CustomScrollView(
+                          controller: _showListController,
+                          scrollDirection: Axis.vertical,
+                          slivers: [
+                            SuperSliverList.builder(
+                              listController: showListController,
+                              extentEstimation: (index, m) => widget.itemHeight,
+                              itemCount: widget.itemCount,
+                              itemBuilder: (context, index) {
+                                return FutureBuilder<TvChannel>(
+                                  future: _loadChannel(index),
+                                  builder: (context, snapshot) {
+                                    if (!snapshot.hasData) {
+                                      return SizedBox(
+                                        height: widget.itemHeight,
+                                        child: const Center(
+                                            child: CircularProgressIndicator()),
+                                      );
+                                    }
+                                    return SizedBox(
+                                      height: widget.itemHeight,
+                                      child: ChannelRow(
+                                        channel: snapshot.data!,
+                                        key: ValueKey(
+                                            "${snapshot.data!.channelID}_${snapshot.data!.showItems.length}"),
+                                        onSlotsComputed: widget.onSlotsComputed,
+                                        selectedChannel: widget.selectedChannel,
+                                        itemHeight: widget.itemHeight,
+                                        getCalculatedWidth: getCalculatedWidth,
+                                        showsBuilder: widget.showsBuilder,
+                                        onSelectSlot: widget.onSelectSlot,
+                                        placeholderBuilder:
+                                            widget.placeholderBuilder,
+                                        baseTime: baseTime,
+                                        visibleSlotCount: _visibleSlotCount,
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    _buildNowIndicatorOverlay(), // This stays fixed on top
+                  ],
+                ),
+              ),
+*/
+
               Expanded(
                 child: SingleChildScrollView(
                   controller: _showsScrollController,
@@ -308,6 +406,8 @@ class ChannelWidgetState extends State<ChannelWidget> {
                                 return SizedBox(
                                   height: widget.itemHeight,
                                   child: ChannelRow(
+                                    key: ValueKey(
+                                        "${snapshot.data!.channelID}_${snapshot.data!.showItems.length}"),
                                     channel: snapshot.data!,
                                     onSlotsComputed: widget.onSlotsComputed,
                                     selectedChannel: widget.selectedChannel,
@@ -338,8 +438,8 @@ class ChannelWidgetState extends State<ChannelWidget> {
     );
   }
 
-  final LruCache<int, TvChannel> _channelCache = LruCache(300); // adjust size
-  final LruCache<int, Future<TvChannel>> _futureCache = LruCache(300);
+  final LruCache<int, TvChannel> _channelCache = LruCache(100); // adjust size
+  final LruCache<int, Future<TvChannel>> _futureCache = LruCache(100);
 
   Future<TvChannel> _loadChannel(int index) {
     final cachedChannel = _channelCache.get(index);
@@ -373,7 +473,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
             gradient: LinearGradient(
               colors: [
                 Colors.white.withAlpha(2),
-                Colors.white.withAlpha(20),
+                Colors.white.withAlpha(10),
               ],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
@@ -467,32 +567,48 @@ class ChannelRow extends StatefulWidget {
 }
 
 class _ChannelRowState extends State<ChannelRow>
-//with AutomaticKeepAliveClientMixin
-
+// with AutomaticKeepAliveClientMixin
 {
   //@override
-  //bool get wantKeepAlive => true;
+  /// bool get wantKeepAlive => true;
+  List<EPGSlot>? _cachedSlots;
+  DateTime? _cachedTimelineStart;
+  DateTime? _cachedTimelineEnd;
+  int _lastShowHash = 0;
+  int _hashShows(List<ShowItem> shows) {
+    return Object.hashAll(
+      shows.map((s) => Object.hash(s.showID, s.showStartTime, s.showEndTime)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    // super.build(context);
-
     final timelineStart = widget.baseTime;
     final timelineEnd = timelineStart.add(Duration(
       minutes: widget.visibleSlotCount * 30,
     ));
 
     final shows = widget.channel.showItems;
+    final currentHash = _hashShows(shows);
 
-    final slots = generateEPGSlots(shows, timelineStart, timelineEnd);
-    widget.onSlotsComputed?.call(widget.channel.channelID, slots);
+    if (_cachedSlots == null ||
+        _cachedTimelineStart != timelineStart ||
+        _cachedTimelineEnd != timelineEnd ||
+        _lastShowHash != currentHash) {
+      _cachedSlots = generateEPGSlots(shows, timelineStart, timelineEnd);
+      _cachedTimelineStart = timelineStart;
+      _cachedTimelineEnd = timelineEnd;
+      _lastShowHash = currentHash;
+      widget.onSlotsComputed?.call(widget.channel.channelID, _cachedSlots!);
+    }
 
     bool cutoffApplied = false;
+
     return Row(
-      children: slots.map((slot) {
+      children: _cachedSlots!.map((slot) {
         final isSelected =
             widget.selectedChannel.channelID == widget.channel.channelID &&
-                widget.selectedChannel.slotIndex == slots.indexOf(slot);
+                widget.selectedChannel.slotIndex == _cachedSlots!.indexOf(slot);
 
         bool startCutOff = false;
         if (!cutoffApplied && slot.start.isBefore(DateTime.now())) {
@@ -503,7 +619,7 @@ class _ChannelRowState extends State<ChannelRow>
         return RepaintBoundary(
           child: GestureDetector(
             onTap: () {
-              widget.onSelectSlot(slot, slots.indexOf(slot));
+              widget.onSelectSlot(slot, _cachedSlots!.indexOf(slot));
             },
             child: SizedBox(
               width: widget.getCalculatedWidth(slot.duration),
