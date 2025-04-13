@@ -14,9 +14,12 @@ typedef PlaceholderBuilder = Widget Function(BuildContext context,
 typedef SlotsComputedCallback = void Function(
     String channelID, List<EPGSlot> slots);
 
+typedef SelectedSlotCallback = void Function(EPGSlot slot, int index);
+
 class ChannelWidget extends StatefulWidget {
   final int itemCount;
   final Future<TvChannel> Function(int index) channelLoader;
+  final void Function(DateTime newDate)? onDateChanged;
   final ItemBuilder channelBuilder;
   final ShowBuilder showsBuilder;
   final PlaceholderBuilder placeholderBuilder;
@@ -29,6 +32,7 @@ class ChannelWidget extends StatefulWidget {
   final bool moveToCurrentTime;
   final SelectedChannel selectedChannel;
   final SlotsComputedCallback? onSlotsComputed;
+  final SelectedSlotCallback onSelectSlot;
 
   const ChannelWidget({
     super.key,
@@ -46,6 +50,8 @@ class ChannelWidget extends StatefulWidget {
     required this.durationPerScrollExtension,
     this.moveToCurrentTime = false,
     this.onSlotsComputed,
+    this.onDateChanged,
+    required this.onSelectSlot,
   });
 
   @override
@@ -150,6 +156,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
         _currentVisibleDate = scrolledTime;
       });
     }
+    widget.onDateChanged?.call(scrolledTime);
   }
 
   @override
@@ -307,6 +314,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
                                     itemHeight: widget.itemHeight,
                                     getCalculatedWidth: getCalculatedWidth,
                                     showsBuilder: widget.showsBuilder,
+                                    onSelectSlot: widget.onSelectSlot,
                                     placeholderBuilder:
                                         widget.placeholderBuilder,
                                     baseTime: baseTime,
@@ -436,10 +444,11 @@ class ChannelRow extends StatefulWidget {
   final PlaceholderBuilder placeholderBuilder;
   final DateTime baseTime;
   final int visibleSlotCount;
-  SelectedChannel selectedChannel;
+  final SelectedChannel selectedChannel;
   final SlotsComputedCallback? onSlotsComputed;
+  final void Function(EPGSlot slot, int index) onSelectSlot;
 
-  ChannelRow({
+  const ChannelRow({
     super.key,
     required this.channel,
     required this.itemHeight,
@@ -450,6 +459,7 @@ class ChannelRow extends StatefulWidget {
     required this.visibleSlotCount,
     required this.selectedChannel,
     this.onSlotsComputed,
+    required this.onSelectSlot,
   });
 
   @override
@@ -457,61 +467,56 @@ class ChannelRow extends StatefulWidget {
 }
 
 class _ChannelRowState extends State<ChannelRow>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
+//with AutomaticKeepAliveClientMixin
+
+{
+  //@override
+  //bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    // super.build(context);
 
     final timelineStart = widget.baseTime;
     final timelineEnd = timelineStart.add(Duration(
       minutes: widget.visibleSlotCount * 30,
     ));
 
-    return StreamBuilder<List<ShowItem>>(
-      stream: widget.channel.showItemsStream,
-      builder: (context, snapshot) {
-        final shows = snapshot.data ?? widget.channel.showItems;
-        final slots = generateEPGSlots(shows, timelineStart, timelineEnd);
-        widget.onSlotsComputed?.call(widget.channel.channelID, slots);
+    final shows = widget.channel.showItems;
 
-        bool cutoffApplied = false;
-        return Row(
-          children: slots.map((slot) {
-            final isSelected =
-                widget.selectedChannel.channelID == widget.channel.channelID &&
-                    widget.selectedChannel.slotIndex == slots.indexOf(slot);
+    final slots = generateEPGSlots(shows, timelineStart, timelineEnd);
+    widget.onSlotsComputed?.call(widget.channel.channelID, slots);
 
-            bool startCutOff = false;
-            if (!cutoffApplied && slot.start.isBefore(DateTime.now())) {
-              startCutOff = true;
-              cutoffApplied = true;
-            }
+    bool cutoffApplied = false;
+    return Row(
+      children: slots.map((slot) {
+        final isSelected =
+            widget.selectedChannel.channelID == widget.channel.channelID &&
+                widget.selectedChannel.slotIndex == slots.indexOf(slot);
 
-            return RepaintBoundary(
-              child: GestureDetector(
-                onTap: () {
-                  widget.selectedChannel = widget.selectedChannel.copyWith(
-                    slotIndex: slots.indexOf(slot),
-                    channelID: widget.channel.channelID,
-                  );
-                },
-                child: SizedBox(
-                  width: widget.getCalculatedWidth(slot.duration),
-                  height: widget.itemHeight,
-                  child: slot.isPlaceholder
-                      ? widget.placeholderBuilder(context, slot.start,
-                          isSelected, widget.channel.channelID, startCutOff)
-                      : widget.showsBuilder(context, slot.show!, isSelected,
-                          widget.channel.channelID, startCutOff),
-                ),
-              ),
-            );
-          }).toList(),
+        bool startCutOff = false;
+        if (!cutoffApplied && slot.start.isBefore(DateTime.now())) {
+          startCutOff = true;
+          cutoffApplied = true;
+        }
+
+        return RepaintBoundary(
+          child: GestureDetector(
+            onTap: () {
+              widget.onSelectSlot(slot, slots.indexOf(slot));
+            },
+            child: SizedBox(
+              width: widget.getCalculatedWidth(slot.duration),
+              height: widget.itemHeight,
+              child: slot.isPlaceholder
+                  ? widget.placeholderBuilder(context, slot.start, isSelected,
+                      widget.channel.channelID, startCutOff)
+                  : widget.showsBuilder(context, slot.show!, isSelected,
+                      widget.channel.channelID, startCutOff),
+            ),
+          ),
         );
-      },
+      }).toList(),
     );
   }
 

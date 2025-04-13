@@ -4,9 +4,7 @@ class TvChannel {
   final String serviceProvider;
   final String channelLogoBase64;
   final List<ShowItem> showItems;
-  final dynamic imageStream;
-  final dynamic showItemsStream;
-  String streamIcon;
+  final String streamIcon;
   final String epgid;
 
   TvChannel({
@@ -14,9 +12,7 @@ class TvChannel {
     required this.channelName,
     required this.showItems,
     required this.channelLogoBase64,
-    this.imageStream,
-    this.showItemsStream,
-    this.streamIcon = '',
+    required this.streamIcon,
     required this.serviceProvider,
     required this.epgid,
   });
