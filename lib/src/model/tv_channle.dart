@@ -44,6 +44,25 @@ class ShowItem {
     required this.serviceProvider,
     required this.epgid,
   });
+  factory ShowItem.fromMap(Map<String, dynamic> map) => ShowItem(
+        channelID: map['channelID'] as String,
+        showID: map['showID'] as String,
+        showName: map['showName'] as String,
+        showStartTime: DateTime.parse(map['showStartTime'] as String),
+        showEndTime: DateTime.parse(map['showEndTime'] as String),
+        serviceProvider: map['serviceProvider'] as String,
+        epgid: map['epgid'] as String,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'channelID': channelID,
+        'showID': showID,
+        'showName': showName,
+        'showStartTime': showStartTime.toIso8601String(),
+        'showEndTime': showEndTime.toIso8601String(),
+        'serviceProvider': serviceProvider,
+        'epgid': epgid,
+      };
 
   @override
   String toString() {

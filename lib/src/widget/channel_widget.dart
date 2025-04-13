@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
@@ -73,7 +75,8 @@ class ChannelWidgetState extends State<ChannelWidget> {
   ScrollController get verticalController => _channelListController;
   ScrollController get horizontalController => _showsScrollController;
 
-  late final DateTime baseTime;
+  late DateTime baseTime;
+
   DateTime _currentVisibleDate = DateTime.now();
   DateTime get exposedBaseTime => baseTime;
   int _visibleSlotCount = 48;
@@ -105,6 +108,8 @@ class ChannelWidgetState extends State<ChannelWidget> {
     }
   }
 
+  Timer? _timeRolloverCheckTimer;
+
   @override
   void initState() {
     super.initState();
@@ -129,7 +134,35 @@ class ChannelWidgetState extends State<ChannelWidget> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.moveToCurrentTime) _scrollToCurrentTime();
     });
+    _timeRolloverCheckTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      final now = DateTime.now();
+      final roundedMinutes = now.minute >= 30 ? 30 : 0;
+      final newBase =
+          DateTime(now.year, now.month, now.day, now.hour, roundedMinutes);
+
+      if (!isSameMoment(baseTime, newBase)) {
+        setState(() {
+          baseTime = newBase;
+          _currentVisibleDate = newBase;
+        });
+
+        if (widget.moveToCurrentTime) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToCurrentTime();
+          });
+        }
+
+        widget.onDateChanged?.call(newBase);
+      }
+    });
   }
+
+  bool isSameMoment(DateTime a, DateTime b) =>
+      a.year == b.year &&
+      a.month == b.month &&
+      a.day == b.day &&
+      a.hour == b.hour &&
+      a.minute == b.minute;
 
   void _scrollToCurrentTime() {
     final now = DateTime.now();
@@ -161,6 +194,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
 
   @override
   void dispose() {
+    _timeRolloverCheckTimer?.cancel();
     _timelineController.dispose();
     _showsScrollController.dispose();
     _channelListController.dispose();
