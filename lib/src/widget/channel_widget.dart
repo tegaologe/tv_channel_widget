@@ -472,8 +472,8 @@ class ChannelWidgetState extends State<ChannelWidget> {
     );
   }
 
-  final LruCache<int, TvChannel> _channelCache = LruCache(100); // adjust size
-  final LruCache<int, Future<TvChannel>> _futureCache = LruCache(100);
+  final LruCache<int, TvChannel> _channelCache = LruCache(50); // adjust size
+  final LruCache<int, Future<TvChannel>> _futureCache = LruCache(50);
 
   Future<TvChannel> _loadChannel(int index) {
     final cachedChannel = _channelCache.get(index);
