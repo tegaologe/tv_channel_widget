@@ -231,11 +231,10 @@ class ChannelWidgetState extends State<ChannelWidget> {
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.only(left: 10),
                   child: Text(
-                    DateFormat('EEE, MMM d, h:mm a')
-                        .format(_currentVisibleDate),
+                    DateFormat('EEE, MMM d').format(_currentVisibleDate),
                     style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 12,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -260,7 +259,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
                           DateFormat('hh:mm a').format(time),
                           style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold),
                         ),
                       );
@@ -314,8 +313,15 @@ class ChannelWidgetState extends State<ChannelWidget> {
                 ),
               ),
 */
-
-              SizedBox(
+              Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: BorderSide(
+                      color: Colors.grey.withAlpha(60),
+                      width: 0.8,
+                    ),
+                  ),
+                ),
                 width: widget.channelWidth,
                 child: SuperListView.builder(
                   cacheExtent: 100,
@@ -416,7 +422,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
                   child: Stack(
                     children: [
                       SizedBox(
-                        width: getCalculatedWidth(_visibleSlotCount * 30),
+                        width: getCalculatedWidth(_visibleSlotCount * 60),
                         child: SuperListView.builder(
                           cacheExtent: 100,
                           listController: showListController,
@@ -726,7 +732,7 @@ class _ChannelRowState extends State<ChannelRow>
     DateTime current = start;
 
     while (current.isBefore(end)) {
-      final next = current.add(const Duration(minutes: 30));
+      final next = current.add(const Duration(hours: 1));
       final slotEnd = next.isBefore(end) ? next : end;
 
       placeholders.add(EPGSlot(

@@ -65,6 +65,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.6.0"
+  drop_shadow:
+    dependency: transitive
+    description:
+      name: drop_shadow
+      sha256: "1fa552baeb7c6a3c36a7ff77186a2302a7bf53c93914f46328a9c4eb68ec6b08"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.0"
   fake_async:
     dependency: transitive
     description:
@@ -86,35 +94,11 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.1"
-  flutter_list_view:
-    dependency: transitive
-    description:
-      name: flutter_list_view
-      sha256: "7fb70adb9ef41393bc65a26fc2e3e3a498f808063bb9242bf63fd492624bf319"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.29"
   flutter_test:
     dependency: "direct dev"
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_twin_scroller:
-    dependency: transitive
-    description:
-      name: flutter_twin_scroller
-      sha256: "608031dad75ee96c5121711c63cfa67d5a19d954a595e3b93b458316db3004ea"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.0.1+2"
-  indexed_list_view:
-    dependency: transitive
-    description:
-      name: indexed_list_view
-      sha256: "68777adb830e839801ef7910a857796166576e8b47fe98002dbf65fe9d274fcd"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.0.0"
   intl:
     dependency: transitive
     description:
@@ -203,30 +187,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.9.1"
-  scroll_to_index:
-    dependency: transitive
-    description:
-      name: scroll_to_index
-      sha256: b707546e7500d9f070d63e5acf74fd437ec7eeeb68d3412ef7b0afada0b4f176
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.1"
-  scrollable_positioned_list:
-    dependency: transitive
-    description:
-      name: scrollable_positioned_list
-      sha256: "1b54d5f1329a1e263269abc9e2543d90806131aa14fe7c6062a8054d57249287"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.8"
-  scrollable_positioned_list_extended:
-    dependency: transitive
-    description:
-      name: scrollable_positioned_list_extended
-      sha256: "15ff6fabf2edd67fbb82efcaaa8c1893bd8c267c1bcc0bd5822790e1e64cf879"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.9"
   sky_engine:
     dependency: transitive
     description: flutter
