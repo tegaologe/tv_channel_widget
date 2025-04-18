@@ -260,7 +260,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
                           style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
-                              fontWeight: FontWeight.bold),
+                              fontWeight: FontWeight.normal),
                         ),
                       );
                     },
@@ -502,75 +502,75 @@ class ChannelWidgetState extends State<ChannelWidget> {
     final minutes = now.difference(baseTime).inMinutes;
     final offset = getCalculatedWidth(minutes);
 
+    const double lineWidth = 1.5;
+    const double ballDiameter = 8.0;
+    final double ballRadius = ballDiameter / 2;
+
     return Positioned(
       left: 0,
       top: 0,
       bottom: 0,
       child: IgnorePointer(
-        child: Container(
+        child: SizedBox(
           width: offset,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withAlpha(2),
-                Colors.white.withAlpha(10),
-              ],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            border: Border(
-              right: BorderSide(
-                color: Colors.redAccent.withAlpha(90), // red line
-                width: 2,
+          // height is inherited from Positioned (top:0, bottom:0)
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // 1) gradient fill up to now
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withAlpha(2),
+                        Colors.white.withAlpha(20),
+                      ],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                  ),
+                ),
               ),
-            ),
+
+              // 2) red vertical line at the right edge of the gradient
+              Positioned(
+                right: -lineWidth / 2,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: lineWidth,
+                  color: Colors.redAccent.withAlpha(90),
+                ),
+              ),
+
+              // 3) little ball sitting on top of that line
+              Positioned(
+                right: -ballRadius,
+                top: -ballRadius,
+                child: Container(
+                  width: ballDiameter,
+                  height: ballDiameter,
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withAlpha(90),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.redAccent.withAlpha(90),
+                        blurRadius: 0,
+                        spreadRadius: 0,
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  /*
-
-  Widget _buildNowIndicatorOverlay() {
-    final now = DateTime.now();
-    final minutes = now.difference(baseTime).inMinutes;
-    final offset = getCalculatedWidth(minutes);
-
-    return Positioned(
-      left: offset - 1, // Center the 2-pixel line at the computed offset.
-      top: 0,
-      bottom: 0,
-      child: IgnorePointer(
-        child: Stack(
-          alignment: Alignment.topCenter,
-          children: [
-            // Red circle at the top of the line.
-
-            SizedBox(
-              width: 2,
-              // Use MediaQuery to cover the available height or wrap in a container with fixed height.
-              height: MediaQuery.of(context).size.height,
-              child: CustomPaint(
-                painter: DashedLinePainter(
-                  dashWidth: 5,
-                  dashSpace: 4,
-                  color: const Color.fromARGB(255, 138, 154, 173),
-                ),
-              ),
-            ),
-/*
-            Container(
-              width: 1,
-              color: const Color.fromARGB(204, 115, 122, 136),
-            ),
-            */
-          ],
-        ),
-      ),
-    );
-  }
-*/
   bool isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
