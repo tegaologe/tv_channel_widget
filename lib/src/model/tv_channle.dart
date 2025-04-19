@@ -6,6 +6,7 @@ class TvChannel {
   final List<ShowItem> showItems;
   final String streamIcon;
   final String epgid;
+  List<EPGSlot> cachedSlots = [];
 
   TvChannel({
     required this.channelID,

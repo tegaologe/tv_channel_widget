@@ -91,14 +91,14 @@ class ChannelWidgetState extends State<ChannelWidget> {
 
   void onEnter() {
     final sel = widget.selectedChannel;
-    //WidgetsBinding.instance.addPostFrameCallback((_) {
-    // 1) grab the key list for that row
-    final keys =
-        _rowControllers[sel.channelIndex]; // whatever map you stored them in
-    if (keys == null) return;
+    final keys = _rowControllers[sel.channelIndex];
+    final slog = widget.selectedChannel.slotIndex;
+    //final slot =
+    if (slog < 0 || slog >= _visibleSlotCount) return;
 
-    _triggerRippleAt(sel.channelIndex, sel.slotIndex, Size(200, 200));
-    // });
+    if (keys == null) return;
+    _triggerRippleAt(
+        sel.channelIndex, sel.slotIndex, Size(200, widget.itemHeight));
   }
 
   void _triggerRippleAt(int row, int slot, Size size) {
@@ -113,11 +113,17 @@ class ChannelWidgetState extends State<ChannelWidget> {
     final center = Offset(size.width / 2, size.height / 2);
     final fx = TouchRippleSpreadingEffect(
       context: ctx,
-      callback: () {/* optional cleanup logic */},
+      callback: () {
+        print('Ripple effect completed');
+      },
       isRejectable: false,
       baseOffset: center,
       behavior: ctx.tapBehavior,
     );
+    fx.addListener(() {
+      //final p = fx.spreadPercent; // 0.0 → 1.0 over your spreadDuration
+      //print('Ripple spread at ${(p * 100).toStringAsFixed(1)}%');
+    });
 
     // attach & start — no detach needed!
     ctrl.attachByKey(key, fx);
@@ -319,44 +325,6 @@ class ChannelWidgetState extends State<ChannelWidget> {
         Expanded(
           child: Row(
             children: [
-              // Channel Labels
-              /*
-              SizedBox(
-                width: widget.channelWidth,
-                child: CustomScrollView(
-                  controller: _channelListController,
-                  slivers: [
-                    SuperSliverList.builder(
-                      listController: channelListController,
-                      extentEstimation: (index, m) => widget.itemHeight,
-                      itemCount: widget.itemCount,
-                      itemBuilder: (context, index) {
-                        return FutureBuilder<TvChannel>(
-                          future: _loadChannel(index),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) {
-                              return SizedBox(
-                                height: widget.itemHeight,
-                                child: const Center(
-                                    child: CircularProgressIndicator()),
-                              );
-                            }
-                            return SizedBox(
-                              height: widget.itemHeight,
-                              child: widget.channelBuilder(
-                                context,
-                                index,
-                                snapshot.data!,
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-*/
               Container(
                 decoration: BoxDecoration(
                   border: Border(
@@ -397,129 +365,76 @@ class ChannelWidgetState extends State<ChannelWidget> {
                   },
                 ),
               ),
+              TouchRippleStyle(
+                rippleColor: Colors.black.withAlpha(50),
+                rippleBorderRadius: BorderRadius.circular(4),
+                overlapBehavior: TouchRippleOverlapBehavior.overlappable,
+                cancelBehavior: TouchRippleCancelBehavior.none,
+                onlyMainButton: false,
 
-              // Shows Grid with Now Indicator
-              /*
-              Expanded(
-                child: Stack(
-                  children: [
-                    SingleChildScrollView(
-                      controller: _showsScrollController,
-                      scrollDirection: Axis.horizontal,
-                      child: SizedBox(
-                        width: getCalculatedWidth(_visibleSlotCount * 30),
-                        child: CustomScrollView(
-                          controller: _showListController,
-                          scrollDirection: Axis.vertical,
-                          slivers: [
-                            SuperSliverList.builder(
-                              listController: showListController,
-                              extentEstimation: (index, m) => widget.itemHeight,
-                              itemCount: widget.itemCount,
-                              itemBuilder: (context, index) {
-                                return FutureBuilder<TvChannel>(
-                                  future: _loadChannel(index),
-                                  builder: (context, snapshot) {
-                                    if (!snapshot.hasData) {
-                                      return SizedBox(
-                                        height: widget.itemHeight,
-                                        child: const Center(
-                                            child: CircularProgressIndicator()),
-                                      );
-                                    }
+                //tapBehavior: TouchRippleBehavior(...),
+                child: Expanded(
+                  child: SingleChildScrollView(
+                    controller: _showsScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: Stack(
+                      children: [
+                        SizedBox(
+                          width: getCalculatedWidth(_visibleSlotCount * 60),
+                          child: SuperListView.builder(
+                            cacheExtent: 100,
+                            listController: showListController,
+                            addRepaintBoundaries: true,
+                            addAutomaticKeepAlives: true,
+                            delayPopulatingCacheArea: true,
+                            controller: _showListController,
+                            physics: const ClampingScrollPhysics(),
+                            itemCount: widget.itemCount,
+                            itemBuilder: (context, index) {
+                              return FutureBuilder<TvChannel>(
+                                future: _loadChannel(index),
+                                builder: (context, snapshot) {
+                                  if (!snapshot.hasData) {
                                     return SizedBox(
                                       height: widget.itemHeight,
-                                      child: ChannelRow(
-                                        channel: snapshot.data!,
-                                        key: ValueKey(
-                                            "${snapshot.data!.channelID}_${snapshot.data!.showItems.length}"),
-                                        onSlotsComputed: widget.onSlotsComputed,
-                                        selectedChannel: widget.selectedChannel,
-                                        itemHeight: widget.itemHeight,
-                                        getCalculatedWidth: getCalculatedWidth,
-                                        showsBuilder: widget.showsBuilder,
-                                        onSelectSlot: widget.onSelectSlot,
-                                        placeholderBuilder:
-                                            widget.placeholderBuilder,
-                                        baseTime: baseTime,
-                                        visibleSlotCount: _visibleSlotCount,
-                                      ),
+                                      child: const Center(
+                                          child: CircularProgressIndicator()),
                                     );
-                                  },
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    _buildNowIndicatorOverlay(), // This stays fixed on top
-                  ],
-                ),
-              ),
-*/
-
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _showsScrollController,
-                  scrollDirection: Axis.horizontal,
-                  child: Stack(
-                    children: [
-                      SizedBox(
-                        width: getCalculatedWidth(_visibleSlotCount * 60),
-                        child: SuperListView.builder(
-                          cacheExtent: 100,
-                          listController: showListController,
-                          addRepaintBoundaries: true,
-                          addAutomaticKeepAlives: true,
-                          delayPopulatingCacheArea: true,
-                          controller: _showListController,
-                          physics: const ClampingScrollPhysics(),
-                          itemCount: widget.itemCount,
-                          itemBuilder: (context, index) {
-                            return FutureBuilder<TvChannel>(
-                              future: _loadChannel(index),
-                              builder: (context, snapshot) {
-                                if (!snapshot.hasData) {
+                                  }
                                   return SizedBox(
                                     height: widget.itemHeight,
-                                    child: const Center(
-                                        child: CircularProgressIndicator()),
+                                    child: ChannelRow(
+                                      rowIndex: index,
+                                      key: ValueKey(
+                                          "${snapshot.data!.channelID}_${snapshot.data!.showItems.length}"),
+                                      channel: snapshot.data!,
+                                      onSlotsComputed: widget.onSlotsComputed,
+                                      selectedChannel: widget.selectedChannel,
+                                      itemHeight: widget.itemHeight,
+                                      getCalculatedWidth: getCalculatedWidth,
+                                      showsBuilder: widget.showsBuilder,
+                                      onSelectSlot: widget.onSelectSlot,
+                                      placeholderBuilder:
+                                          widget.placeholderBuilder,
+                                      baseTime: baseTime,
+                                      visibleSlotCount: _visibleSlotCount,
+                                      onControllersInitialized:
+                                          (rowIndex, controllers) {
+                                        _rowControllers[rowIndex] = controllers;
+                                      },
+                                    ),
                                   );
-                                }
-                                return SizedBox(
-                                  height: widget.itemHeight,
-                                  child: ChannelRow(
-                                    rowIndex: index,
-                                    key: ValueKey(
-                                        "${snapshot.data!.channelID}_${snapshot.data!.showItems.length}"),
-                                    channel: snapshot.data!,
-                                    onSlotsComputed: widget.onSlotsComputed,
-                                    selectedChannel: widget.selectedChannel,
-                                    itemHeight: widget.itemHeight,
-                                    getCalculatedWidth: getCalculatedWidth,
-                                    showsBuilder: widget.showsBuilder,
-                                    onSelectSlot: widget.onSelectSlot,
-                                    placeholderBuilder:
-                                        widget.placeholderBuilder,
-                                    baseTime: baseTime,
-                                    visibleSlotCount: _visibleSlotCount,
-                                    onControllersInitialized:
-                                        (rowIndex, controllers) {
-                                      _rowControllers[rowIndex] = controllers;
-                                    },
-                                  ),
-                                );
-                              },
-                            );
-                          },
+                                },
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                      _buildNowIndicatorOverlay(),
-                    ],
+                        _buildNowIndicatorOverlay(),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              )
             ],
           ),
         ),
@@ -668,10 +583,9 @@ class _ChannelRowState extends State<ChannelRow>
   ///
   ///
   ///
-  List<EPGSlot>? _cachedSlots;
+  List<EPGSlot>? cachedSlots;
   DateTime? _cachedTimelineStart;
   DateTime? _cachedTimelineEnd;
-  late List<GlobalKey> slotKeys;
   int _lastShowHash = 0;
   late final List<TouchRippleController> _rowControllers;
   int _hashShows(List<ShowItem> shows) {
@@ -706,10 +620,6 @@ class _ChannelRowState extends State<ChannelRow>
     super.didUpdateWidget(old);
     if (old.visibleSlotCount != widget.visibleSlotCount) {
       // regenerate if your slot count changed
-      slotKeys = List.generate(
-        widget.visibleSlotCount,
-        (i) => GlobalKey(debugLabel: 'ripple-${widget.rowIndex}-$i'),
-      );
     }
   }
 
@@ -723,27 +633,27 @@ class _ChannelRowState extends State<ChannelRow>
     final shows = widget.channel.showItems;
     final currentHash = _hashShows(shows);
 
-    if (_cachedSlots == null ||
+    if (cachedSlots == null ||
         _cachedTimelineStart != timelineStart ||
         _cachedTimelineEnd != timelineEnd ||
         _lastShowHash != currentHash) {
-      _cachedSlots = generateEPGSlots(shows, timelineStart, timelineEnd);
+      cachedSlots = generateEPGSlots(shows, timelineStart, timelineEnd);
       _cachedTimelineStart = timelineStart;
       _cachedTimelineEnd = timelineEnd;
       _lastShowHash = currentHash;
-      widget.onSlotsComputed?.call(widget.channel.channelID, _cachedSlots!);
+      widget.onSlotsComputed?.call(widget.channel.channelID, cachedSlots!);
     }
 
     bool cutoffApplied = false;
 
     return Row(
-      children: _cachedSlots!.asMap().entries.map((entry) {
+      children: cachedSlots!.asMap().entries.map((entry) {
         final slotIndex = entry.key;
         final slotController = _rowControllers[slotIndex];
         final isSelected =
             widget.selectedChannel.channelID == widget.channel.channelID &&
                 widget.selectedChannel.slotIndex ==
-                    _cachedSlots!.indexOf(entry.value);
+                    cachedSlots!.indexOf(entry.value);
 
         bool startCutOff = false;
         if (!cutoffApplied && entry.value.start.isBefore(DateTime.now())) {
@@ -752,15 +662,13 @@ class _ChannelRowState extends State<ChannelRow>
         }
 
         return RepaintBoundary(
-            child: Material(
-          color: Colors.transparent, // so the ripple can paint
           child: TouchRipple(
             controller: slotController,
             key: ValueKey(
                 'ripple-${widget.rowIndex}-$slotIndex'), // Ensure dynamic key matches
             onTap: () {
               widget.onSelectSlot(
-                  entry.value, _cachedSlots!.indexOf(entry.value));
+                  entry.value, cachedSlots!.indexOf(entry.value));
             },
             child: SizedBox(
               width: widget.getCalculatedWidth(entry.value.duration),
@@ -772,7 +680,7 @@ class _ChannelRowState extends State<ChannelRow>
                       widget.channel.channelID, startCutOff),
             ),
           ),
-        ));
+        );
       }).toList(),
     );
   }
