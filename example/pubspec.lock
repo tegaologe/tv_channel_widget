@@ -65,14 +65,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.6.0"
-  drop_shadow:
-    dependency: transitive
-    description:
-      name: drop_shadow
-      sha256: "1fa552baeb7c6a3c36a7ff77186a2302a7bf53c93914f46328a9c4eb68ec6b08"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.0"
   fake_async:
     dependency: transitive
     description:
@@ -99,6 +91,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_touch_ripple:
+    dependency: transitive
+    description:
+      name: flutter_touch_ripple
+      sha256: "374adb5405b938b156e6d1d3c1bcee1c726422f866bf1b4d1d8e7f64980c6c31"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.6.1"
   intl:
     dependency: transitive
     description:

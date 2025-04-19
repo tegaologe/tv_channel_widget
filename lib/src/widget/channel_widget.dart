@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 import 'package:tv_channel_widget/src/model/tv_channle.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
+import 'package:flutter_touch_ripple/flutter_touch_ripple.dart';
 
 typedef ItemBuilder = Widget Function(
     BuildContext context, int index, TvChannel channel);
@@ -17,6 +19,8 @@ typedef SlotsComputedCallback = void Function(
     String channelID, List<EPGSlot> slots);
 
 typedef SelectedSlotCallback = void Function(EPGSlot slot, int index);
+
+final GlobalKey rippleKey = GlobalKey();
 
 class ChannelWidget extends StatefulWidget {
   final int itemCount;
@@ -80,7 +84,54 @@ class ChannelWidgetState extends State<ChannelWidget> {
   DateTime _currentVisibleDate = DateTime.now();
   DateTime get exposedBaseTime => baseTime;
   int _visibleSlotCount = 48;
+  final TouchRippleController rippleController = TouchRippleController();
+  final Map<int, List<TouchRippleController>> _rowControllers = {};
+
   late final int _slotsPerScrollExtension;
+
+  void onEnter() {
+    final sel = widget.selectedChannel;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // 1) grab the key list for that row
+      final keys =
+          _rowControllers[sel.channelIndex]; // whatever map you stored them in
+      if (keys == null) return;
+
+      _triggerRippleAt(sel.channelIndex, sel.slotIndex, Size(200, 200));
+    });
+  }
+
+  void _triggerRippleAt(int rowIndex, int slotIndex, Size slotSize) {
+    final controller = _rowControllers[rowIndex]![slotIndex];
+    final rippleKey = 'ripple-$rowIndex-$slotIndex';
+
+    // 1) Detach any existing ripple effect safely
+    final existingEffect =
+        controller.getEffectByKey<TouchRippleEffect>(rippleKey);
+    if (existingEffect != null) {
+      controller.detachByKey(rippleKey);
+      debugPrint('Detached old ripple at $rippleKey');
+    }
+
+    // 2) Create a new ripple effect
+    final ctx = controller.context;
+    final center = Offset(slotSize.width / 2, slotSize.height / 2);
+    final effect = TouchRippleSpreadingEffect(
+      context: ctx,
+      callback: () {
+        // Handle ripple completion (optional)
+        debugPrint('Ripple effect completed for key: $rippleKey');
+      },
+      isRejectable: false,
+      baseOffset: center,
+      behavior: ctx.tapBehavior,
+    );
+
+    // 3) Attach and start the ripple effect
+    controller.attachByKey(rippleKey, effect);
+    effect.start();
+    debugPrint('Triggered NEW ripple at $rippleKey');
+  }
 
   @override
   void didUpdateWidget(covariant ChannelWidget oldWidget) {
@@ -446,6 +497,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
                                 return SizedBox(
                                   height: widget.itemHeight,
                                   child: ChannelRow(
+                                    rowIndex: index,
                                     key: ValueKey(
                                         "${snapshot.data!.channelID}_${snapshot.data!.showItems.length}"),
                                     channel: snapshot.data!,
@@ -459,6 +511,12 @@ class ChannelWidgetState extends State<ChannelWidget> {
                                         widget.placeholderBuilder,
                                     baseTime: baseTime,
                                     visibleSlotCount: _visibleSlotCount,
+                                    onControllersInitialized:
+                                        (rowIndex, controllers) {
+                                      _rowControllers[rowIndex] = controllers;
+                                      debugPrint(
+                                          'Controllers initialized for rowIndex: $rowIndex');
+                                    },
                                   ),
                                 );
                               },
@@ -587,6 +645,9 @@ class ChannelRow extends StatefulWidget {
   final SelectedChannel selectedChannel;
   final SlotsComputedCallback? onSlotsComputed;
   final void Function(EPGSlot slot, int index) onSelectSlot;
+  final int rowIndex;
+  final void Function(int rowIndex, List<TouchRippleController> controllers)
+      onControllersInitialized;
 
   const ChannelRow({
     super.key,
@@ -600,6 +661,8 @@ class ChannelRow extends StatefulWidget {
     required this.selectedChannel,
     this.onSlotsComputed,
     required this.onSelectSlot,
+    required this.rowIndex,
+    required this.onControllersInitialized,
   });
 
   @override
@@ -611,14 +674,52 @@ class _ChannelRowState extends State<ChannelRow>
 {
   //@override
   /// bool get wantKeepAlive => true;
+  ///
+  ///
+  ///
   List<EPGSlot>? _cachedSlots;
   DateTime? _cachedTimelineStart;
   DateTime? _cachedTimelineEnd;
+  late List<GlobalKey> slotKeys;
   int _lastShowHash = 0;
+  late final List<TouchRippleController> _rowControllers;
   int _hashShows(List<ShowItem> shows) {
     return Object.hashAll(
       shows.map((s) => Object.hash(s.showID, s.showStartTime, s.showEndTime)),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _rowControllers = List.generate(
+      widget.visibleSlotCount,
+      (_) => TouchRippleController(),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onControllersInitialized(widget.rowIndex, _rowControllers);
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _rowControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(ChannelRow old) {
+    super.didUpdateWidget(old);
+    if (old.visibleSlotCount != widget.visibleSlotCount) {
+      // regenerate if your slot count changed
+      slotKeys = List.generate(
+        widget.visibleSlotCount,
+        (i) => GlobalKey(debugLabel: 'ripple-${widget.rowIndex}-$i'),
+      );
+    }
   }
 
   @override
@@ -645,33 +746,42 @@ class _ChannelRowState extends State<ChannelRow>
     bool cutoffApplied = false;
 
     return Row(
-      children: _cachedSlots!.map((slot) {
+      children: _cachedSlots!.asMap().entries.map((entry) {
+        final slotIndex = entry.key;
+        final slotController = _rowControllers[slotIndex];
         final isSelected =
             widget.selectedChannel.channelID == widget.channel.channelID &&
-                widget.selectedChannel.slotIndex == _cachedSlots!.indexOf(slot);
+                widget.selectedChannel.slotIndex ==
+                    _cachedSlots!.indexOf(entry.value);
 
         bool startCutOff = false;
-        if (!cutoffApplied && slot.start.isBefore(DateTime.now())) {
+        if (!cutoffApplied && entry.value.start.isBefore(DateTime.now())) {
           startCutOff = true;
           cutoffApplied = true;
         }
 
         return RepaintBoundary(
-          child: GestureDetector(
+            child: Material(
+          color: Colors.transparent, // so the ripple can paint
+          child: TouchRipple(
+            controller: slotController,
+            key: ValueKey(
+                'ripple-${widget.rowIndex}-$slotIndex'), // Ensure dynamic key matches
             onTap: () {
-              widget.onSelectSlot(slot, _cachedSlots!.indexOf(slot));
+              widget.onSelectSlot(
+                  entry.value, _cachedSlots!.indexOf(entry.value));
             },
             child: SizedBox(
-              width: widget.getCalculatedWidth(slot.duration),
+              width: widget.getCalculatedWidth(entry.value.duration),
               height: widget.itemHeight,
-              child: slot.isPlaceholder
-                  ? widget.placeholderBuilder(context, slot.start, isSelected,
-                      widget.channel.channelID, startCutOff)
-                  : widget.showsBuilder(context, slot.show!, isSelected,
+              child: entry.value.isPlaceholder
+                  ? widget.placeholderBuilder(context, entry.value.start,
+                      isSelected, widget.channel.channelID, startCutOff)
+                  : widget.showsBuilder(context, entry.value.show!, isSelected,
                       widget.channel.channelID, startCutOff),
             ),
           ),
-        );
+        ));
       }).toList(),
     );
   }
