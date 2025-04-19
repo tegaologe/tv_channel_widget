@@ -18,7 +18,8 @@ typedef PlaceholderBuilder = Widget Function(BuildContext context,
 typedef SlotsComputedCallback = void Function(
     String channelID, List<EPGSlot> slots);
 
-typedef SelectedSlotCallback = void Function(EPGSlot slot, int index);
+typedef SelectedSlotCallback = void Function(
+    EPGSlot slot, int index, int method);
 
 final GlobalKey rippleKey = GlobalKey();
 
@@ -86,7 +87,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
   int _visibleSlotCount = 48;
   final TouchRippleController rippleController = TouchRippleController();
   final Map<int, List<TouchRippleController>> _rowControllers = {};
-
+  final Map<int, List<EPGSlot>> slotsPerRow = {};
   late final int _slotsPerScrollExtension;
 
   void onEnter() {
@@ -128,7 +129,11 @@ class ChannelWidgetState extends State<ChannelWidget> {
     // attach & start — no detach needed!
     ctrl.attachByKey(key, fx);
     fx.start();
-
+    final slots = slotsPerRow[row];
+    if (slots != null && slot < slots.length) {
+      final selectedSlot = slots[slot];
+      widget.onSelectSlot(selectedSlot, slot, 0);
+    }
     debugPrint('Fired ripple at $key');
   }
 
@@ -408,7 +413,12 @@ class ChannelWidgetState extends State<ChannelWidget> {
                                       key: ValueKey(
                                           "${snapshot.data!.channelID}_${snapshot.data!.showItems.length}"),
                                       channel: snapshot.data!,
-                                      onSlotsComputed: widget.onSlotsComputed,
+                                      //onSlotsComputed: widget.onSlotsComputed,
+                                      onSlotsComputed: (channelId, slots) {
+                                        slotsPerRow[index] = slots;
+                                        widget.onSlotsComputed
+                                            ?.call(channelId, slots);
+                                      },
                                       selectedChannel: widget.selectedChannel,
                                       itemHeight: widget.itemHeight,
                                       getCalculatedWidth: getCalculatedWidth,
@@ -550,7 +560,7 @@ class ChannelRow extends StatefulWidget {
   final int visibleSlotCount;
   final SelectedChannel selectedChannel;
   final SlotsComputedCallback? onSlotsComputed;
-  final void Function(EPGSlot slot, int index) onSelectSlot;
+  final void Function(EPGSlot slot, int index, int method) onSelectSlot;
   final int rowIndex;
   final void Function(int rowIndex, List<TouchRippleController> controllers)
       onControllersInitialized;
@@ -668,7 +678,7 @@ class _ChannelRowState extends State<ChannelRow>
                 'ripple-${widget.rowIndex}-$slotIndex'), // Ensure dynamic key matches
             onTap: () {
               widget.onSelectSlot(
-                  entry.value, cachedSlots!.indexOf(entry.value));
+                  entry.value, cachedSlots!.indexOf(entry.value), 1);
             },
             child: SizedBox(
               width: widget.getCalculatedWidth(entry.value.duration),
@@ -715,6 +725,7 @@ class _ChannelRowState extends State<ChannelRow>
         channelID: show.channelID,
         start: show.showStartTime,
         end: show.showEndTime,
+        channelName: widget.channel.channelName,
         show: show,
       ));
 
@@ -749,6 +760,7 @@ class _ChannelRowState extends State<ChannelRow>
         channelID: channelID,
         serviceProvider: serviceProvider,
         id: 'placeholder_${current.millisecondsSinceEpoch}',
+        channelName: widget.channel.channelName,
         start: current,
         end: slotEnd,
         isPlaceholder: true,

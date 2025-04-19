@@ -74,6 +74,7 @@ class ShowItem {
 class EPGSlot {
   final String id;
   final String channelID;
+  final String channelName;
   final DateTime start;
   final DateTime end;
   final ShowItem? show;
@@ -90,6 +91,7 @@ class EPGSlot {
     this.isPlaceholder = false,
     required this.serviceProvider,
     required this.epgid,
+    required this.channelName,
   });
 
   int get duration => end.difference(start).inMinutes;
