@@ -91,46 +91,39 @@ class ChannelWidgetState extends State<ChannelWidget> {
 
   void onEnter() {
     final sel = widget.selectedChannel;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 1) grab the key list for that row
-      final keys =
-          _rowControllers[sel.channelIndex]; // whatever map you stored them in
-      if (keys == null) return;
+    //WidgetsBinding.instance.addPostFrameCallback((_) {
+    // 1) grab the key list for that row
+    final keys =
+        _rowControllers[sel.channelIndex]; // whatever map you stored them in
+    if (keys == null) return;
 
-      _triggerRippleAt(sel.channelIndex, sel.slotIndex, Size(200, 200));
-    });
+    _triggerRippleAt(sel.channelIndex, sel.slotIndex, Size(200, 200));
+    // });
   }
 
-  void _triggerRippleAt(int rowIndex, int slotIndex, Size slotSize) {
-    final controller = _rowControllers[rowIndex]![slotIndex];
-    final rippleKey = 'ripple-$rowIndex-$slotIndex';
+  void _triggerRippleAt(int row, int slot, Size size) {
+    debugPrint('-->Triggering ripple at row: $row, slot: $slot');
+    final ctrl = _rowControllers[row]![slot];
 
-    // 1) Detach any existing ripple effect safely
-    final existingEffect =
-        controller.getEffectByKey<TouchRippleEffect>(rippleKey);
-    if (existingEffect != null) {
-      controller.detachByKey(rippleKey);
-      debugPrint('Detached old ripple at $rippleKey');
-    }
+    // a new key every single time
+    final key = 'ripple-$row-$slot-${DateTime.now().microsecondsSinceEpoch}';
 
-    // 2) Create a new ripple effect
-    final ctx = controller.context;
-    final center = Offset(slotSize.width / 2, slotSize.height / 2);
-    final effect = TouchRippleSpreadingEffect(
+    // build the effect once
+    final ctx = ctrl.context;
+    final center = Offset(size.width / 2, size.height / 2);
+    final fx = TouchRippleSpreadingEffect(
       context: ctx,
-      callback: () {
-        // Handle ripple completion (optional)
-        debugPrint('Ripple effect completed for key: $rippleKey');
-      },
+      callback: () {/* optional cleanup logic */},
       isRejectable: false,
       baseOffset: center,
       behavior: ctx.tapBehavior,
     );
 
-    // 3) Attach and start the ripple effect
-    controller.attachByKey(rippleKey, effect);
-    effect.start();
-    debugPrint('Triggered NEW ripple at $rippleKey');
+    // attach & start — no detach needed!
+    ctrl.attachByKey(key, fx);
+    fx.start();
+
+    debugPrint('Fired ripple at $key');
   }
 
   @override
@@ -514,8 +507,6 @@ class ChannelWidgetState extends State<ChannelWidget> {
                                     onControllersInitialized:
                                         (rowIndex, controllers) {
                                       _rowControllers[rowIndex] = controllers;
-                                      debugPrint(
-                                          'Controllers initialized for rowIndex: $rowIndex');
                                     },
                                   ),
                                 );
