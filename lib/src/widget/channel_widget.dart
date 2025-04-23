@@ -41,7 +41,7 @@ class ChannelWidget extends StatefulWidget {
   final SelectedSlotCallback onSelectSlot;
   final void Function(int rowIndex, List<TouchRippleController> controllers)?
       onControllersInitialized;
-
+  final bool capToInitialWindow;
   const ChannelWidget({
     super.key,
     required this.itemCount,
@@ -61,6 +61,7 @@ class ChannelWidget extends StatefulWidget {
     this.onDateChanged,
     required this.onSelectSlot,
     this.onControllersInitialized,
+    this.capToInitialWindow = true,
   });
 
   @override
@@ -89,7 +90,9 @@ class ChannelWidgetState extends State<ChannelWidget> {
 
   DateTime _currentVisibleDate = DateTime.now();
   DateTime get exposedBaseTime => baseTime;
-  int _visibleSlotCount = 48;
+
+  static const int _initialVisibleSlots = 48;
+  int _visibleSlotCount = _initialVisibleSlots;
 
   //final TouchRippleController rippleController = TouchRippleController();
   //final Map<int, List<TouchRippleController>> _rowControllers = {};
@@ -219,6 +222,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
         widget.onDateChanged?.call(newBase);
       }
     });
+    _visibleSlotCount = _initialVisibleSlots;
   }
 
   bool isSameMoment(DateTime a, DateTime b) =>
@@ -240,6 +244,26 @@ class ChannelWidgetState extends State<ChannelWidget> {
     final currentScroll = _timelineController.offset;
     final maxScroll = _timelineController.position.maxScrollExtent;
 
+    // only auto‐extend if the user _allows_ it
+    if (!widget.capToInitialWindow && currentScroll > maxScroll - 300) {
+      setState(() {
+        _visibleSlotCount += _slotsPerScrollExtension;
+      });
+    }
+
+    // update header date as before…
+    final minutesOffset = currentScroll / widget.pixelsPerMinute;
+    final scrolledTime = baseTime.add(Duration(minutes: minutesOffset.round()));
+    if (!isSameDay(scrolledTime, _currentVisibleDate)) {
+      setState(() => _currentVisibleDate = scrolledTime);
+    }
+    widget.onDateChanged?.call(scrolledTime);
+  }
+/*
+  void _onTimelineScroll() {
+    final currentScroll = _timelineController.offset;
+    final maxScroll = _timelineController.position.maxScrollExtent;
+
     if (currentScroll > maxScroll - 300) {
       setState(() {
         _visibleSlotCount += _slotsPerScrollExtension;
@@ -255,6 +279,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
     }
     widget.onDateChanged?.call(scrolledTime);
   }
+  */
 
   @override
   void dispose() {
@@ -624,15 +649,37 @@ class _ChannelRowState extends State<ChannelRow>
   }
 
   @override
-  void dispose() {
-    super.dispose();
-  }
-
-  @override
   void didUpdateWidget(ChannelRow old) {
     super.didUpdateWidget(old);
     if (old.visibleSlotCount != widget.visibleSlotCount) {
-      // regenerate if your slot count changed
+      final newCount = widget.visibleSlotCount;
+      final oldCount = _controllers.length;
+
+      if (newCount > oldCount) {
+        // add extra controllers
+        _controllers.addAll(
+          List.generate(newCount - oldCount, (_) => TouchRippleController()),
+        );
+      } else if (newCount < oldCount) {
+        // dispose the extras and trim the list
+        for (var i = newCount; i < oldCount; i++) {
+          _controllers[i].dispose();
+        }
+        _controllers.removeRange(newCount, oldCount);
+      }
+
+      // re-notify parent in case it caches them
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onControllersInitialized?.call(widget.rowIndex, _controllers);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    for (final c in _controllers) {
+      c.dispose();
     }
   }
 
