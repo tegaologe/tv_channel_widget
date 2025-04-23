@@ -39,6 +39,8 @@ class ChannelWidget extends StatefulWidget {
   final SelectedChannel selectedChannel;
   final SlotsComputedCallback? onSlotsComputed;
   final SelectedSlotCallback onSelectSlot;
+  final void Function(int rowIndex, List<TouchRippleController> controllers)?
+      onControllersInitialized;
 
   const ChannelWidget({
     super.key,
@@ -58,6 +60,7 @@ class ChannelWidget extends StatefulWidget {
     this.onSlotsComputed,
     this.onDateChanged,
     required this.onSelectSlot,
+    this.onControllersInitialized,
   });
 
   @override
@@ -78,18 +81,23 @@ class ChannelWidgetState extends State<ChannelWidget> {
 
   ScrollController get verticalController => _channelListController;
   ScrollController get horizontalController => _showsScrollController;
+  late final void Function(
+          int rowIndex, List<TouchRippleController> controllers)?
+      onControllersInitialized;
 
   late DateTime baseTime;
 
   DateTime _currentVisibleDate = DateTime.now();
   DateTime get exposedBaseTime => baseTime;
   int _visibleSlotCount = 48;
-  final TouchRippleController rippleController = TouchRippleController();
-  final Map<int, List<TouchRippleController>> _rowControllers = {};
+
+  //final TouchRippleController rippleController = TouchRippleController();
+  //final Map<int, List<TouchRippleController>> _rowControllers = {};
   final Map<int, List<EPGSlot>> slotsPerRow = {};
   late final int _slotsPerScrollExtension;
 
   void onEnter() {
+    /*
     final sel = widget.selectedChannel;
     final keys = _rowControllers[sel.channelIndex];
     final slog = widget.selectedChannel.slotIndex;
@@ -99,8 +107,10 @@ class ChannelWidgetState extends State<ChannelWidget> {
     if (keys == null) return;
     _triggerRippleAt(
         sel.channelIndex, sel.slotIndex, Size(200, widget.itemHeight));
+        */
   }
 
+/*
   void _triggerRippleAt(int row, int slot, Size size) {
     debugPrint('-->Triggering ripple at row: $row, slot: $slot');
     final ctrl = _rowControllers[row]![slot];
@@ -135,7 +145,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
     }
     debugPrint('Fired ripple at $key');
   }
-
+*/
   @override
   void didUpdateWidget(covariant ChannelWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -423,14 +433,12 @@ class ChannelWidgetState extends State<ChannelWidget> {
                                       getCalculatedWidth: getCalculatedWidth,
                                       showsBuilder: widget.showsBuilder,
                                       onSelectSlot: widget.onSelectSlot,
+                                      onControllersInitialized:
+                                          widget.onControllersInitialized,
                                       placeholderBuilder:
                                           widget.placeholderBuilder,
                                       baseTime: baseTime,
                                       visibleSlotCount: _visibleSlotCount,
-                                      onControllersInitialized:
-                                          (rowIndex, controllers) {
-                                        _rowControllers[rowIndex] = controllers;
-                                      },
                                     ),
                                   );
                                 },
@@ -561,7 +569,7 @@ class ChannelRow extends StatefulWidget {
   final SlotsComputedCallback? onSlotsComputed;
   final void Function(EPGSlot slot, int index, int method) onSelectSlot;
   final int rowIndex;
-  final void Function(int rowIndex, List<TouchRippleController> controllers)
+  final void Function(int rowIndex, List<TouchRippleController> controllers)?
       onControllersInitialized;
 
   const ChannelRow({
@@ -577,7 +585,7 @@ class ChannelRow extends StatefulWidget {
     this.onSlotsComputed,
     required this.onSelectSlot,
     required this.rowIndex,
-    required this.onControllersInitialized,
+    this.onControllersInitialized,
   });
 
   @override
@@ -596,7 +604,7 @@ class _ChannelRowState extends State<ChannelRow>
   DateTime? _cachedTimelineStart;
   DateTime? _cachedTimelineEnd;
   int _lastShowHash = 0;
-  late final List<TouchRippleController> _rowControllers;
+  late final List<TouchRippleController> _controllers;
   int _hashShows(List<ShowItem> shows) {
     return Object.hashAll(
       shows.map((s) => Object.hash(s.showID, s.showStartTime, s.showEndTime)),
@@ -606,21 +614,17 @@ class _ChannelRowState extends State<ChannelRow>
   @override
   void initState() {
     super.initState();
-
-    _rowControllers = List.generate(
+    _controllers = List.generate(
       widget.visibleSlotCount,
       (_) => TouchRippleController(),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.onControllersInitialized(widget.rowIndex, _rowControllers);
+      widget.onControllersInitialized?.call(widget.rowIndex, _controllers);
     });
   }
 
   @override
   void dispose() {
-    for (final controller in _rowControllers) {
-      controller.dispose();
-    }
     super.dispose();
   }
 
@@ -657,8 +661,9 @@ class _ChannelRowState extends State<ChannelRow>
 
     return Row(
       children: cachedSlots!.asMap().entries.map((entry) {
+        final ctrl = _controllers[entry.key];
         final slotIndex = entry.key;
-        final slotController = _rowControllers[slotIndex];
+        final slot = entry.value;
         final isSelected =
             widget.selectedChannel.channelID == widget.channel.channelID &&
                 widget.selectedChannel.slotIndex ==
@@ -672,13 +677,9 @@ class _ChannelRowState extends State<ChannelRow>
 
         return RepaintBoundary(
           child: TouchRipple(
-            controller: slotController,
-            key: ValueKey(
-                'ripple-${widget.rowIndex}-$slotIndex'), // Ensure dynamic key matches
-            onTap: () {
-              widget.onSelectSlot(
-                  entry.value, cachedSlots!.indexOf(entry.value), 1);
-            },
+            rippleBorderRadius: BorderRadius.circular(4),
+            controller: ctrl,
+            onTap: () => widget.onSelectSlot(slot, slotIndex, 1),
             child: SizedBox(
               width: widget.getCalculatedWidth(entry.value.duration),
               height: widget.itemHeight,
