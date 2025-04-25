@@ -419,7 +419,7 @@ class ChannelWidgetState extends State<ChannelWidget> {
                     child: Stack(
                       children: [
                         SizedBox(
-                          width: getCalculatedWidth(_visibleSlotCount * 60),
+                          width: getCalculatedWidth(_visibleSlotCount * 30),
                           child: SuperListView.builder(
                             cacheExtent: 100,
                             listController: showListController,
